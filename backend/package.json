@@ -1,0 +1,36 @@
+{
+  "name": "mitienda-backend",
+  "version": "0.0.1",
+  "private": true,
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "medusa develop",
+    "build": "medusa build",
+    "start": "medusa start",
+    "db:migrate": "medusa db:migrate",
+    "db:generate": "medusa db:generate --modules",
+    "db:rollback": "medusa db:rollback",
+    "seed": "medusa exec ./src/scripts/seed.ts"
+  },
+  "dependencies": {
+    "@medusajs/cache-redis": "^2.17.1",
+    "@medusajs/dashboard": "^2.15.5",
+    "@medusajs/event-bus-redis": "^2.17.1",
+    "@medusajs/framework": "^2.15.5",
+    "@medusajs/medusa": "^2.15.5",
+    "@medusajs/utils": "^2.15.5",
+    "@medusajs/workflow-engine-redis": "^2.17.1",
+    "ioredis": "^5.4.1",
+    "pg": "^8.21.0"
+  },
+  "devDependencies": {
+    "@medusajs/admin-sdk": "^2.15.5",
+    "@medusajs/cli": "^2.15.5",
+    "@types/node": "^20",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5"
+  }
+}

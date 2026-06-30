@@ -1,0 +1,32 @@
+import Link from "next/link"
+import { Truck, HelpCircle, MapPin } from "lucide-react"
+
+export function TopBar() {
+  return (
+    <div className="bg-gray-100 border-b border-gray-200 text-xs text-gray-600">
+      <div className="max-w-7xl mx-auto px-4 flex items-center justify-between h-8">
+        <div className="flex items-center gap-4">
+          <span className="flex items-center gap-1">
+            <Truck className="w-3 h-3" />
+            Envío gratis desde Q2000
+          </span>
+          <span className="hidden sm:block">|</span>
+          <span className="hidden sm:block">Pago Seguro</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <Link href="/ayuda" className="flex items-center gap-1 hover:text-primary">
+            <HelpCircle className="w-3 h-3" />
+            Ayuda
+          </Link>
+          <Link href="/vende" className="hover:text-primary hidden sm:block">
+            Vende en MiTienda
+          </Link>
+          <Link href="/mi-cuenta" className="flex items-center gap-1 hover:text-primary">
+            <MapPin className="w-3 h-3" />
+            Rastrea tu pedido
+          </Link>
+        </div>
+      </div>
+    </div>
+  )
+}
