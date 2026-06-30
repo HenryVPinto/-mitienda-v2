@@ -50,9 +50,7 @@ export default defineConfig({
       key: Modules.WORKFLOW_ENGINE,
       resolve: "@medusajs/workflow-engine-redis",
       options: {
-        redis: {
-          url: process.env.REDIS_URL,
-        },
+        redisUrl: process.env.REDIS_URL,
       },
     },
     // ── Módulos custom MiTienda ───────────────────────────────
