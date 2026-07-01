@@ -2,6 +2,9 @@ import { defineConfig, loadEnv, Modules } from "@medusajs/utils"
 
 loadEnv(process.env.NODE_ENV || "development", process.cwd())
 
+console.log("[medusa-config] NODE_ENV:", process.env.NODE_ENV)
+console.log("[medusa-config] REDIS_URL:", process.env.REDIS_URL ? "SET (" + process.env.REDIS_URL.substring(0, 20) + "...)" : "NOT SET")
+
 export default defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
