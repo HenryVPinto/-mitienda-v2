@@ -9,6 +9,7 @@ if (process.env.NODE_ENV !== "production") {
 export default defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
+    redisUrl: process.env.REDIS_URL,
 
     // Opciones adicionales del driver PostgreSQL.
     // Descomentar en producción si el proveedor requiere SSL.
