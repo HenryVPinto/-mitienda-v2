@@ -1,0 +1,233 @@
+# ============================================================
+# MiTienda 2.0 — .gitignore
+# Cubre: MedusaJS, Node.js, TypeScript, Next.js, PostgreSQL
+# Estructura: /backend (MedusaJS) + /frontend (Next.js)
+# ============================================================
+
+
+# ============================================================
+# DEPENDENCIAS
+# ============================================================
+
+# Paquetes Node.js — nunca versionar
+node_modules/
+
+# Caches de gestores de paquetes
+.npm/
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnpm-store/
+
+
+# ============================================================
+# VARIABLES DE ENTORNO
+# REGLA: NUNCA versionar archivos .env con valores reales.
+# Solo se versiona .env.example (sin valores sensibles).
+# ============================================================
+
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.staging
+.env.staging.local
+.env.production
+.env.production.local
+
+# Conservar únicamente la plantilla de ejemplo
+!.env.example
+
+
+# ============================================================
+# BUILDS Y COMPILACIÓN
+# ============================================================
+
+# TypeScript compilado
+dist/
+build/
+out/
+
+# Medusa v2 — build output y cache interno
+.medusa/
+.medusa-cache/
+
+# Next.js — build output y cache
+.next/
+next-env.d.ts
+
+# Vite — build output del admin dashboard
+.vite/
+
+
+# ============================================================
+# LOGS
+# ============================================================
+
+logs/
+*.log
+*.log.*
+log/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+
+# ============================================================
+# COBERTURA DE PRUEBAS
+# ============================================================
+
+coverage/
+.nyc_output/
+*.lcov
+jest-results.json
+test-results/
+playwright-report/
+.playwright/
+
+
+# ============================================================
+# CACHÉ DE HERRAMIENTAS DE DESARROLLO
+# ============================================================
+
+# TypeScript
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# ESLint y Prettier
+.eslintcache
+.stylelintcache
+.prettiercache
+
+# Turbopack / Turborepo
+.turbo/
+
+# SWC (compilador usado por Next.js)
+.swc/
+
+# Parcel
+.parcel-cache/
+
+
+# ============================================================
+# MEDUSAJS ESPECÍFICO
+# ============================================================
+
+# Archivos de subida de imágenes (se gestionan en almacenamiento externo)
+uploads/
+
+# Volcados SQL generados manualmente
+medusa-db.sql
+*.pgdump
+*.pg_dump
+
+# Configuración compilada (solo .ts es fuente de verdad)
+medusa-config.js
+
+
+# ============================================================
+# NEXT.JS ESPECÍFICO (Frontend — Sprint 6)
+# ============================================================
+
+# Directorio de caché de Next.js
+.next/
+
+# Exportación estática de Next.js
+out/
+
+# Variables de entorno generadas por Next.js
+next-env.d.ts
+
+
+# ============================================================
+# POSTGRESQL
+# ============================================================
+
+# Volcados y backups de base de datos
+*.sql.bak
+pg_dump/
+*.dump
+*.pgdump
+*.pg_restore
+
+
+# ============================================================
+# ARCHIVOS TEMPORALES DEL SISTEMA
+# ============================================================
+
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+.fuse_hidden*
+.nfs*
+
+
+# ============================================================
+# macOS
+# ============================================================
+
+.DS_Store
+.DS_Store?
+._*
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.DocumentRevisions-V100
+.fseventsd
+.TemporaryItems
+Icon
+
+
+# ============================================================
+# VS CODE
+# ============================================================
+
+# Excluir configuración del IDE (preferencias personales)
+.vscode/
+
+# Conservar configuración compartida del equipo si se agrega en el futuro:
+# !.vscode/settings.json
+# !.vscode/extensions.json
+# !.vscode/launch.json
+
+*.code-workspace
+
+
+# ============================================================
+# JETBRAINS / WEBSTORM
+# ============================================================
+
+.idea/
+*.iml
+*.iws
+*.ipr
+.idea_modules/
+
+
+# ============================================================
+# OTROS EDITORES
+# ============================================================
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# Vim / NeoVim
+Session.vim
+.netrwhist
+tags
+
+# Emacs
+\#*\#
+.\#*
