@@ -48,13 +48,13 @@ npx medusa user -e admin@mitienda.com -p Admin1234! -f Admin -l MiTienda
 
 ## Frontend — Vercel
 
-**Estado: No iniciado.**
+**Estado: Desplegado (preview). Integración Git en configuración.**
 
-Pendiente de que el backend esté estable primero.
+Variables de entorno configuradas en Vercel:
+- `NEXT_PUBLIC_MEDUSA_URL` → `https://-mitienda-v2.railway.app`
+- `NEXT_PUBLIC_PUBLISHABLE_KEY` → `pk_a70601...` (ver Railway shell)
 
-Variables de entorno necesarias en Vercel:
-- `NEXT_PUBLIC_MEDUSA_BACKEND_URL` → URL pública del backend en Railway
-- `NEXT_PUBLIC_DEFAULT_REGION` → (según config del store)
+Integración Git: GitHub (`HenryVPinto/-mitienda-v2`) → Root Directory: `frontend/`
 
 ---
 
