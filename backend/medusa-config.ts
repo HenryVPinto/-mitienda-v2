@@ -64,7 +64,6 @@ export default defineConfig({
     },
     // ── File Storage: Cloudflare R2 ──────────────────────────
     {
-      key: Modules.FILE,
       resolve: "@medusajs/file-s3",
       options: {
         file_url: process.env.R2_PUBLIC_URL,
