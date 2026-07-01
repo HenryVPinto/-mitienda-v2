@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { PackageSearch } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -44,9 +45,9 @@ export default function MiCuentaPage() {
 
       <p className="mt-8 text-xs text-gray-400">
         ¿Eres emprendedor?{" "}
-        <a href="/emprendedores" className="text-primary hover:underline font-medium">
+        <Link href="/emprendedores" className="text-primary hover:underline font-medium">
           Accede al panel de vendedores
-        </a>
+        </Link>
       </p>
     </div>
   )
