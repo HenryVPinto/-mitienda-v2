@@ -1,8 +1,9 @@
 import { defineConfig, loadEnv, Modules } from "@medusajs/utils"
 
-// In production (Railway), env vars are injected by the platform.
-// loadEnv only needed in local development to read .env files.
-if (process.env.NODE_ENV !== "production") {
+// Only load .env files in local development.
+// In Railway (and any environment with DATABASE_URL set), env vars
+// are injected by the platform — calling loadEnv would overwrite them.
+if (!process.env.DATABASE_URL) {
   loadEnv(process.env.NODE_ENV || "development", process.cwd())
 }
 
