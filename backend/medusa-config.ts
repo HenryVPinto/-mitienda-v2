@@ -1,6 +1,10 @@
 import { defineConfig, loadEnv, Modules } from "@medusajs/utils"
 
-loadEnv(process.env.NODE_ENV || "development", process.cwd())
+// In production (Railway), env vars are injected by the platform.
+// loadEnv only needed in local development to read .env files.
+if (process.env.NODE_ENV !== "production") {
+  loadEnv(process.env.NODE_ENV || "development", process.cwd())
+}
 
 export default defineConfig({
   projectConfig: {
