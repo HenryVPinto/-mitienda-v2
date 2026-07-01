@@ -8,4 +8,4 @@ cmds = ["npm ci --legacy-peer-deps --include=dev"]
 cmds = ["NODE_OPTIONS='--max-old-space-size=4096' npm run build"]
 
 [start]
-cmd = "NODE_OPTIONS='--max-old-space-size=700' npm run start"
+cmd = "NODE_OPTIONS='--max-old-space-size=640 --max-semi-space-size=32' npm run start"
