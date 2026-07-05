@@ -15,7 +15,29 @@ type Props = {
   pricingTiers: PricingTier[]
 }
 
-const METADATA_SKIP = new Set(["color_hex", "is_featured", "compare_at_price", "sale_price"])
+const METADATA_SKIP = new Set(["color_hex", "is_featured", "compare_at_price", "sale_price", "video_url"])
+
+function detectVideoPlatform(url: string): "youtube" | "tiktok" | null {
+  if (/youtube\.com|youtu\.be/.test(url)) return "youtube"
+  if (/tiktok\.com/.test(url)) return "tiktok"
+  return null
+}
+
+function getEmbedUrl(url: string): string | null {
+  const platform = detectVideoPlatform(url)
+  if (platform === "youtube") {
+    const short = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/)
+    if (short) return `https://www.youtube.com/embed/${short[1]}`
+    const long = url.match(/[?&]v=([a-zA-Z0-9_-]+)/)
+    if (long) return `https://www.youtube.com/embed/${long[1]}`
+    if (url.includes("/embed/")) return url
+  }
+  if (platform === "tiktok") {
+    const match = url.match(/\/video\/(\d+)/)
+    if (match) return `https://www.tiktok.com/embed/v2/${match[1]}`
+  }
+  return null
+}
 
 function buildAttributes(product: Product): { label: string; value: string }[] {
   const rows: { label: string; value: string }[] = []
@@ -372,6 +394,32 @@ export function ProductDetail({ product, pricingTiers }: Props) {
             </div>
           </div>
         )}
+
+        {/* Video del producto */}
+        {(() => {
+          const videoUrl = product.metadata?.video_url as string | undefined
+          if (!videoUrl) return null
+          const embedUrl = getEmbedUrl(videoUrl)
+          if (!embedUrl) return null
+          const platform = detectVideoPlatform(videoUrl)
+          const isVertical = platform === "tiktok"
+          return (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                Video del producto
+              </p>
+              <div className={`relative w-full overflow-hidden rounded-lg bg-black ${isVertical ? "aspect-[9/16] max-w-[320px]" : "aspect-video"}`}>
+                <iframe
+                  src={embedUrl}
+                  className="absolute inset-0 w-full h-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  title="Video del producto"
+                />
+              </div>
+            </div>
+          )
+        })()}
       </div>
     </div>
   )
