@@ -31,18 +31,18 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const remoteLink = req.scope.resolve(ContainerRegistrationKeys.REMOTE_LINK)
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  // Leer el vendor actual para hacer dismiss con el ID exacto (evita fallo con objeto vacío)
-  const { data: products } = await query.graph({
-    entity: "product",
-    fields: ["id", "mt_vendor.*"],
-    filters: { id },
+  // Consultar la tabla de links directamente para obtener el mt_vendor_id actual,
+  // incluso si el registro del vendor fue borrado y query.graph devuelve null.
+  const { data: existingLinks } = await query.graph({
+    entity: "product_mt_vendor",
+    fields: ["product_id", "mt_vendor_id"],
+    filters: { product_id: id },
   })
-  const existingVendor = (products[0] as any)?.mt_vendor
 
-  if (existingVendor?.id) {
+  for (const link of existingLinks as any[]) {
     await remoteLink.dismiss({
       [Modules.PRODUCT]: { product_id: id },
-      [VENDOR_MODULE]: { mt_vendor_id: existingVendor.id },
+      [VENDOR_MODULE]: { mt_vendor_id: link.mt_vendor_id },
     }).catch((e: unknown) => console.warn("[vendor/POST] dismiss error:", e))
   }
 
