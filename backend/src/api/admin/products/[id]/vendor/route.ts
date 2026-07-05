@@ -31,41 +31,45 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const remoteLink = req.scope.resolve(ContainerRegistrationKeys.REMOTE_LINK)
 
-  // Acceder al servicio del link directamente usando su serviceKey para poder
-  // listar y eliminar links huérfanos (donde el vendor fue borrado y query.graph
-  // no los devuelve por el JOIN, pero sí bloquean el create).
-  const linkServiceKey = (ProductVendorLink as any).serviceKey as string | undefined
-  console.log("[vendor/POST] linkServiceKey:", linkServiceKey)
+  // Buscar el servicio del link en el contenedor de Awilix inspeccionando
+  // sus registros para encontrar la clave del módulo product-vendor link.
+  const allContainerKeys = Object.keys((req.scope as any).registrations ?? {})
+  const vendorLinkKey = allContainerKeys.find((k) => {
+    const lower = k.toLowerCase()
+    return lower.includes("vendor") && (lower.includes("link") || lower.includes("product"))
+  })
+  console.log("[vendor/POST] vendorLinkKey:", vendorLinkKey)
+  console.log("[vendor/POST] all vendor keys:", allContainerKeys.filter(k => k.toLowerCase().includes("vendor")).join(", "))
 
-  if (linkServiceKey) {
+  if (vendorLinkKey) {
     try {
-      const linkSvc = req.scope.resolve(linkServiceKey) as any
-      const existingLinks = await linkSvc.list({ product_id: id })
-      console.log("[vendor/POST] links found via linkSvc:", JSON.stringify(existingLinks))
-
-      for (const link of existingLinks) {
-        // softDelete por product_id+mt_vendor_id
-        await linkSvc.softDelete({ product_id: id, mt_vendor_id: link.mt_vendor_id }).catch(
-          (e: unknown) => console.warn("[vendor/POST] softDelete via linkSvc failed:", String(e))
-        )
+      const linkSvc = req.scope.resolve(vendorLinkKey) as any
+      if (typeof linkSvc.list === "function") {
+        const existingLinks = await linkSvc.list({ product_id: id })
+        console.log("[vendor/POST] links found:", JSON.stringify(existingLinks))
+        for (const link of existingLinks) {
+          await linkSvc.softDelete(
+            { product_id: id, mt_vendor_id: link.mt_vendor_id }
+          ).catch((e: unknown) => console.warn("[vendor/POST] softDelete error:", String(e)))
+        }
       }
     } catch (e: unknown) {
-      console.warn("[vendor/POST] linkSvc access failed:", String(e))
-
-      // Fallback: dismiss por todos los vendors conocidos
-      const vendorSvc = req.scope.resolve(VENDOR_MODULE) as any
-      const allVendors: { id: string }[] = await vendorSvc.listMtVendors({}, { select: ["id"] }).catch(() => [])
-      for (const v of allVendors) {
-        await remoteLink.restore({
-          [Modules.PRODUCT]: { product_id: id },
-          [VENDOR_MODULE]: { mt_vendor_id: v.id },
-        }).catch(() => {})
-        await remoteLink.dismiss({
-          [Modules.PRODUCT]: { product_id: id },
-          [VENDOR_MODULE]: { mt_vendor_id: v.id },
-        }).catch(() => {})
-      }
+      console.warn("[vendor/POST] linkSvc resolve error:", String(e))
     }
+  }
+
+  // Fallback: dismiss todos los vendors conocidos
+  const vendorSvc = req.scope.resolve(VENDOR_MODULE) as any
+  const allVendors: { id: string }[] = await vendorSvc.listMtVendors({}, { select: ["id"] }).catch(() => [])
+  for (const v of allVendors) {
+    await remoteLink.restore({
+      [Modules.PRODUCT]: { product_id: id },
+      [VENDOR_MODULE]: { mt_vendor_id: v.id },
+    }).catch(() => {})
+    await remoteLink.dismiss({
+      [Modules.PRODUCT]: { product_id: id },
+      [VENDOR_MODULE]: { mt_vendor_id: v.id },
+    }).catch(() => {})
   }
 
   try {
