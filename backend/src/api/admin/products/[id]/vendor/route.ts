@@ -46,7 +46,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
     const db = getPool()
     const result = await db.query(
-      "DELETE FROM product_mt_vendor WHERE product_id = $1",
+      "DELETE FROM product_vendor WHERE product_id = $1",
       [id]
     )
     console.log("[vendor/POST] raw delete rows:", result.rowCount)
