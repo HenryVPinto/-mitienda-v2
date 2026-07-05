@@ -40,16 +40,28 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const remoteLink = req.scope.resolve(ContainerRegistrationKeys.REMOTE_LINK)
 
-  // Eliminar cualquier link existente (activo o soft-deleted) directamente desde
-  // la tabla product_mt_vendor. Esto resuelve el caso de links huérfanos donde
-  // el vendor fue borrado y remoteLink.dismiss no puede encontrarlo por el JOIN.
+  // Eliminar cualquier link existente directamente desde la tabla del link.
   try {
     const db = getPool()
-    const result = await db.query(
-      "DELETE FROM product_vendor WHERE product_id = $1",
-      [id]
-    )
-    console.log("[vendor/POST] raw delete rows:", result.rowCount)
+
+    // Buscar el nombre real de la tabla que vincula productos con vendors
+    const tableRes = await db.query(`
+      SELECT table_name FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_name ILIKE '%vendor%'
+        AND table_name ILIKE '%product%'
+      LIMIT 5
+    `)
+    console.log("[vendor/POST] vendor+product tables:", JSON.stringify(tableRes.rows))
+
+    const tableName = tableRes.rows[0]?.table_name
+    if (tableName) {
+      const result = await db.query(
+        `DELETE FROM "${tableName}" WHERE product_id = $1`,
+        [id]
+      )
+      console.log("[vendor/POST] deleted from", tableName, "rows:", result.rowCount)
+    }
   } catch (dbErr: unknown) {
     console.warn("[vendor/POST] raw delete failed:", String(dbErr))
     // Fallback: dismiss vía remoteLink para todos los vendors conocidos
