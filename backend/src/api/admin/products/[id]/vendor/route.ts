@@ -31,20 +31,32 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const remoteLink = req.scope.resolve(ContainerRegistrationKeys.REMOTE_LINK)
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  // Consultar la tabla de links directamente para obtener el mt_vendor_id actual,
-  // incluso si el registro del vendor fue borrado y query.graph devuelve null.
+  // Consultar la tabla de links directamente para obtener el mt_vendor_id actual
   const { data: existingLinks } = await query.graph({
     entity: "product_mt_vendor",
     fields: ["product_id", "mt_vendor_id"],
     filters: { product_id: id },
   })
 
+  console.log("[vendor/POST] existingLinks:", JSON.stringify(existingLinks))
+
   for (const link of existingLinks as any[]) {
+    console.log("[vendor/POST] dismissing link:", link.mt_vendor_id)
     await remoteLink.dismiss({
       [Modules.PRODUCT]: { product_id: id },
       [VENDOR_MODULE]: { mt_vendor_id: link.mt_vendor_id },
-    }).catch((e: unknown) => console.warn("[vendor/POST] dismiss error:", e))
+    }).catch((e: unknown) => console.warn("[vendor/POST] dismiss error:", String(e)))
   }
+
+  // Intentar restore por si el link está soft-deleted — luego dismiss limpio
+  await remoteLink.restore({
+    [Modules.PRODUCT]: { product_id: id },
+    [VENDOR_MODULE]: { mt_vendor_id: vendor_id },
+  }).catch(() => {})
+  await remoteLink.dismiss({
+    [Modules.PRODUCT]: { product_id: id },
+    [VENDOR_MODULE]: { mt_vendor_id: vendor_id },
+  }).catch(() => {})
 
   try {
     await remoteLink.create({
