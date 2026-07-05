@@ -31,32 +31,24 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const remoteLink = req.scope.resolve(ContainerRegistrationKeys.REMOTE_LINK)
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  // Consultar la tabla de links directamente para obtener el mt_vendor_id actual
-  const { data: existingLinks } = await query.graph({
-    entity: "product_mt_vendor",
-    fields: ["product_id", "mt_vendor_id"],
-    filters: { product_id: id },
-  })
+  // 1. Obtener todos los vendors activos para buscar links activos o soft-deleted
+  const vendorService = req.scope.resolve(VENDOR_MODULE) as any
+  const allVendors: { id: string }[] = await vendorService.listMtVendors({}, { select: ["id"] }).catch(() => [])
 
-  console.log("[vendor/POST] existingLinks:", JSON.stringify(existingLinks))
-
-  for (const link of existingLinks as any[]) {
-    console.log("[vendor/POST] dismissing link:", link.mt_vendor_id)
+  // 2. Para cada vendor posible, intentar restore (por si el link está soft-deleted)
+  //    y luego dismiss — así limpiamos tanto links activos como eliminados
+  for (const v of allVendors) {
+    await remoteLink.restore({
+      [Modules.PRODUCT]: { product_id: id },
+      [VENDOR_MODULE]: { mt_vendor_id: v.id },
+    }).catch(() => {})
     await remoteLink.dismiss({
       [Modules.PRODUCT]: { product_id: id },
-      [VENDOR_MODULE]: { mt_vendor_id: link.mt_vendor_id },
-    }).catch((e: unknown) => console.warn("[vendor/POST] dismiss error:", String(e)))
+      [VENDOR_MODULE]: { mt_vendor_id: v.id },
+    }).catch(() => {})
   }
 
-  // Intentar restore por si el link está soft-deleted — luego dismiss limpio
-  await remoteLink.restore({
-    [Modules.PRODUCT]: { product_id: id },
-    [VENDOR_MODULE]: { mt_vendor_id: vendor_id },
-  }).catch(() => {})
-  await remoteLink.dismiss({
-    [Modules.PRODUCT]: { product_id: id },
-    [VENDOR_MODULE]: { mt_vendor_id: vendor_id },
-  }).catch(() => {})
+  console.log("[vendor/POST] cleaned up all links for product", id)
 
   try {
     await remoteLink.create({
