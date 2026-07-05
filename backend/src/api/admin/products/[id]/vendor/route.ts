@@ -43,13 +43,19 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     await remoteLink.dismiss({
       [Modules.PRODUCT]: { product_id: id },
       [VENDOR_MODULE]: { mt_vendor_id: existingVendor.id },
-    }).catch(() => {})
+    }).catch((e: unknown) => console.warn("[vendor/POST] dismiss error:", e))
   }
 
-  await remoteLink.create({
-    [Modules.PRODUCT]: { product_id: id },
-    [VENDOR_MODULE]: { mt_vendor_id: vendor_id },
-  })
+  try {
+    await remoteLink.create({
+      [Modules.PRODUCT]: { product_id: id },
+      [VENDOR_MODULE]: { mt_vendor_id: vendor_id },
+    })
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error("[vendor/POST] create error:", msg)
+    return res.status(500).json({ message: msg })
+  }
 
   return res.json({ success: true })
 }
