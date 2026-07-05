@@ -45,6 +45,22 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   // remoteLink.dismiss no puede encontrarlo por el JOIN de query.graph.
   try {
     const db = getPool()
+
+    // Diagnóstico: columnas y filas de la tabla
+    const colRes = await db.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_name = 'product_product_vendor_mt_vendor' ORDER BY ordinal_position`
+    )
+    console.log("[vendor/POST] columns:", colRes.rows.map((r: any) => r.column_name).join(", "))
+
+    const allRows = await db.query(`SELECT * FROM product_product_vendor_mt_vendor LIMIT 10`)
+    console.log("[vendor/POST] all rows sample:", JSON.stringify(allRows.rows))
+
+    const matchRows = await db.query(
+      `SELECT * FROM product_product_vendor_mt_vendor WHERE product_id = $1`,
+      [id]
+    )
+    console.log("[vendor/POST] rows for product_id", id, ":", JSON.stringify(matchRows.rows))
+
     const result = await db.query(
       `DELETE FROM product_product_vendor_mt_vendor WHERE product_id = $1`,
       [id]
