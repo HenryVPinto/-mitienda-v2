@@ -44,7 +44,8 @@ async function getVendorProducts(
 }
 
 export default async function VendorPage({ params, searchParams }: Props) {
-  const { handle } = await params
+  const { handle: rawHandle } = await params
+  const handle = decodeURIComponent(rawHandle)
   const { page: pageStr } = await searchParams
   const page = Math.max(1, Number(pageStr) || 1)
 

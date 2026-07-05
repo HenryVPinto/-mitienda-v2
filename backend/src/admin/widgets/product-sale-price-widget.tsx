@@ -47,10 +47,7 @@ const ProductSalePriceWidget = ({ data }: Props) => {
         setVariants(vars)
         const init: Record<string, string> = {}
         vars.forEach((v) => {
-          // If offer active, prefill with current offer price
-          const hasOffer = v.metadata?.compare_at_price != null
-          const regularPrice = v.prices.find((p) => !p.price_list_id)?.amount
-          init[v.id] = hasOffer && regularPrice != null ? String(regularPrice) : ""
+          init[v.id] = ""
         })
         setInputValues(init)
       })
@@ -87,10 +84,13 @@ const ProductSalePriceWidget = ({ data }: Props) => {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            // El precio base se cambia al precio de oferta para que checkout cobre el precio correcto.
+            // El precio original queda guardado en compare_at_price para mostrarlo tachado.
             prices: [{ id: regularPrice.id, amount: offerPrice }],
             metadata: {
               ...variant.metadata,
               compare_at_price: regularPrice.amount,
+              sale_price: offerPrice,
             },
           }),
         }
@@ -100,6 +100,43 @@ const ProductSalePriceWidget = ({ data }: Props) => {
       loadVariants()
     } catch {
       toast.error("Error al guardar")
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  // Repara la oferta cuando el usuario corrigió manualmente el precio en el admin,
+  // haciendo que compare_at_price y el precio actual sean iguales.
+  const handleRepair = async (variant: Variant) => {
+    const savedSalePrice = variant.metadata?.sale_price as number | undefined
+    const compareAt = variant.metadata?.compare_at_price as number | undefined
+    if (savedSalePrice == null || compareAt == null) {
+      toast.error("No hay datos de oferta guardados para reparar")
+      return
+    }
+
+    const regularPrice = variant.prices.find((p) => !p.price_list_id)
+    if (!regularPrice) return
+
+    setSaving(variant.id)
+    try {
+      const res = await fetch(
+        `${base}/admin/products/${productId}/variants/${variant.id}`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prices: [{ id: regularPrice.id, amount: savedSalePrice }],
+            metadata: variant.metadata,
+          }),
+        }
+      )
+      if (!res.ok) throw new Error()
+      toast.success(`Oferta reparada — precio restaurado a ${fmt(savedSalePrice)}`)
+      loadVariants()
+    } catch {
+      toast.error("Error al reparar la oferta")
     } finally {
       setSaving(null)
     }
@@ -116,6 +153,7 @@ const ProductSalePriceWidget = ({ data }: Props) => {
     try {
       const newMeta = { ...variant.metadata }
       delete newMeta.compare_at_price
+      delete newMeta.sale_price
 
       const res = await fetch(
         `${base}/admin/products/${productId}/variants/${variant.id}`,
@@ -155,7 +193,15 @@ const ProductSalePriceWidget = ({ data }: Props) => {
       {variants.map((variant) => {
         const regularPrice = variant.prices.find((p) => !p.price_list_id)
         const compareAt = variant.metadata?.compare_at_price as number | undefined
+        const savedSalePrice = variant.metadata?.sale_price as number | undefined
         const offerActive = compareAt != null
+
+        // La oferta está desconfigurada cuando el precio actual es >= al precio original guardado
+        // (ocurre cuando el usuario corrige manualmente el precio en la sección de variantes)
+        const offerBroken =
+          offerActive &&
+          regularPrice != null &&
+          regularPrice.amount >= compareAt
 
         return (
           <div key={variant.id} className="px-4 py-3 space-y-2">
@@ -163,14 +209,19 @@ const ProductSalePriceWidget = ({ data }: Props) => {
               <Label size="small" className="text-ui-fg-base font-medium">
                 {variant.title}
               </Label>
-              {offerActive && (
+              {offerActive && !offerBroken && (
                 <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
                   Oferta activa
                 </span>
               )}
+              {offerBroken && (
+                <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">
+                  ⚠ Oferta desconfigurada
+                </span>
+              )}
             </div>
 
-            {offerActive ? (
+            {offerActive && !offerBroken && (
               <div className="bg-ui-bg-subtle rounded-md px-3 py-2 text-sm space-y-1">
                 <div className="flex gap-x-4">
                   <span className="text-ui-fg-subtle">Precio original:</span>
@@ -182,13 +233,32 @@ const ProductSalePriceWidget = ({ data }: Props) => {
                     {regularPrice ? fmt(regularPrice.amount) : "—"}
                   </span>
                 </div>
-              </div>
-            ) : (
-              regularPrice && (
-                <p className="text-xs text-ui-fg-subtle">
-                  Precio actual: <span className="font-medium">{fmt(regularPrice.amount)}</span>
+                <p className="text-xs text-orange-600 mt-1">
+                  ⚠ El precio de la variante aparecerá como {regularPrice ? fmt(regularPrice.amount) : "—"} en el admin — esto es correcto. No lo modifiques manualmente o se perderá la oferta.
                 </p>
-              )
+              </div>
+            )}
+
+            {offerBroken && (
+              <div className="bg-orange-50 border border-orange-200 rounded-md px-3 py-2 text-sm space-y-1">
+                <p className="text-orange-700 font-medium">
+                  El precio de la variante fue modificado manualmente y la oferta dejó de funcionar.
+                </p>
+                {savedSalePrice != null && (
+                  <p className="text-orange-600 text-xs">
+                    Precio original guardado: {fmt(compareAt!)} · Precio de oferta guardado: {fmt(savedSalePrice)}
+                  </p>
+                )}
+                <p className="text-orange-600 text-xs">
+                  Presiona "Reparar oferta" para restaurarla, o "Quitar oferta" para cancelarla.
+                </p>
+              </div>
+            )}
+
+            {!offerActive && regularPrice && (
+              <p className="text-xs text-ui-fg-subtle">
+                Precio actual: <span className="font-medium">{fmt(regularPrice.amount)}</span>
+              </p>
             )}
 
             <div className="flex items-center gap-x-2">
@@ -214,6 +284,15 @@ const ProductSalePriceWidget = ({ data }: Props) => {
                     Activar
                   </Button>
                 </>
+              )}
+              {offerActive && offerBroken && savedSalePrice != null && (
+                <Button
+                  size="small"
+                  isLoading={saving === variant.id}
+                  onClick={() => handleRepair(variant)}
+                >
+                  Reparar oferta
+                </Button>
               )}
               {offerActive && (
                 <Button

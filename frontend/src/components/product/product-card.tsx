@@ -74,9 +74,21 @@ export function ProductCard({ product }: Props) {
 
         {/* Info */}
         <div className="p-3">
-          <p className="text-xs text-gray-500 truncate">
-            {product.mt_brand?.name ?? product.mt_vendor?.name ?? ""}
-          </p>
+          <div className="h-4 flex items-center">
+            {product.mt_brand?.logo_url ? (
+              <Image
+                src={product.mt_brand.logo_url}
+                alt={product.mt_brand.name}
+                width={48}
+                height={16}
+                className="object-contain max-h-4 w-auto"
+              />
+            ) : (
+              <p className="text-xs text-gray-500 truncate">
+                {product.mt_brand?.name ?? product.mt_vendor?.name ?? ""}
+              </p>
+            )}
+          </div>
           <h3 className="text-sm font-medium text-gray-800 line-clamp-2 mt-0.5 leading-snug">
             {product.title}
           </h3>

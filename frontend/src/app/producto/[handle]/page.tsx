@@ -73,7 +73,8 @@ async function getPricingTiers(productId: string): Promise<PricingTier[]> {
 }
 
 export default async function ProductPage({ params }: Props) {
-  const { handle } = await params
+  const { handle: rawHandle } = await params
+  const handle = decodeURIComponent(rawHandle)
   const product = await getProduct(handle)
   if (!product) notFound()
 

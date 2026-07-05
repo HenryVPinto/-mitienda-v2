@@ -37,7 +37,7 @@ async function getProducts(
     limit: String(LIMIT),
     offset: String(offset),
     fields:
-      "id,title,handle,thumbnail,images.*,variants.id,variants.prices.*,variants.calculated_price.*,mt_brand.*,mt_vendor.*",
+      "id,title,handle,thumbnail,images.*,variants.id,variants.prices.*,variants.calculated_price.*,variants.metadata,mt_brand.*,mt_vendor.*",
   }
   if (regionId) params.region_id = regionId
   if (sort === "price_asc") params.order = "variants.prices.amount"

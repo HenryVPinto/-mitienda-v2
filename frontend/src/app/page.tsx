@@ -31,7 +31,8 @@ import {
 import type { LucideProps } from "lucide-react"
 import { storeGet, getDefaultRegionId } from "@/lib/medusa"
 import { BannerSlider } from "@/components/home/banner-slider"
-import { ProductCard } from "@/components/product/product-card"
+import { BrandsSlider } from "@/components/home/brands-slider"
+import { FeaturedSlider } from "@/components/home/featured-slider"
 import type { Banner, Product, Category, Brand } from "@/lib/types"
 
 async function getBanners(): Promise<Banner[]> {
@@ -229,11 +230,7 @@ export default async function HomePage() {
                 Ver todos <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-              {products.map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
+            <FeaturedSlider products={products} />
           </section>
         )}
 
@@ -244,26 +241,7 @@ export default async function HomePage() {
               <span className="w-1 h-5 bg-primary rounded-full inline-block" />
               Marcas que trabajamos
             </h2>
-            <div className="flex items-center gap-4 overflow-x-auto pb-2">
-              {brands.map((brand) => (
-                <Link
-                  key={brand.id}
-                  href={`/marca/${brand.handle}`}
-                  className="flex-shrink-0 flex items-center gap-3 px-5 py-3 border border-gray-200 rounded-lg hover:border-primary/40 hover:shadow-sm hover:text-primary transition-all"
-                >
-                  {brand.logo_url && (
-                    <Image
-                      src={brand.logo_url}
-                      alt={brand.name}
-                      width={40}
-                      height={24}
-                      className="object-contain h-6 w-auto max-w-[48px]"
-                    />
-                  )}
-                  <span className="text-sm font-semibold text-gray-700">{brand.name}</span>
-                </Link>
-              ))}
-            </div>
+            <BrandsSlider brands={brands} />
           </section>
         )}
 

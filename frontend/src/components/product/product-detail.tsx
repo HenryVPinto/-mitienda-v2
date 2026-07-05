@@ -15,10 +15,6 @@ type Props = {
   pricingTiers: PricingTier[]
 }
 
-function isColorOption(title: string) {
-  return title.toLowerCase().includes("color")
-}
-
 const METADATA_SKIP = new Set(["color_hex"])
 
 function buildAttributes(product: Product): { label: string; value: string }[] {
@@ -65,11 +61,17 @@ function buildAttributes(product: Product): { label: string; value: string }[] {
 }
 
 export function ProductDetail({ product, pricingTiers }: Props) {
-  // Inicializar con los valores de la primera variante
+  // Inicializar con los valores de la primera variante.
+  // Usa product.options como fuente de verdad para los IDs, con fallback por valor
+  // cuando Medusa no devuelve option_id en variant.options.
   const initialValues = useMemo(() => {
     const map: Record<string, string> = {}
-    product.variants?.[0]?.options?.forEach((o) => {
-      map[o.option_id] = o.value
+    const first = product.variants?.[0]
+    product.options?.forEach((option) => {
+      const value =
+        first?.options?.find((o) => o.option_id === option.id)?.value ??
+        first?.options?.find((o) => option.values?.some((v) => v.value === o.value))?.value
+      if (value) map[option.id] = value
     })
     return map
   }, [product])
@@ -80,10 +82,17 @@ export function ProductDetail({ product, pricingTiers }: Props) {
   const currentVariant = useMemo(() => {
     return (
       product.variants?.find((v) =>
-        v.options?.every((o) => selectedValues[o.option_id] === o.value)
+        (product.options ?? []).every((option) => {
+          const selected = selectedValues[option.id]
+          if (!selected) return true
+          const varValue =
+            v.options?.find((o) => o.option_id === option.id)?.value ??
+            v.options?.find((o) => option.values?.some((v2) => v2.value === o.value))?.value
+          return varValue === selected
+        })
       ) ?? product.variants?.[0]
     )
-  }, [product.variants, selectedValues])
+  }, [product.variants, product.options, selectedValues])
 
   // Precio de la variante activa
   const regularPrices = (currentVariant?.prices ?? []).filter((p) => !p.price_list_id)
@@ -123,12 +132,26 @@ export function ProductDetail({ product, pricingTiers }: Props) {
   function isValueAvailable(optionId: string, value: string) {
     const tentative = { ...selectedValues, [optionId]: value }
     return product.variants?.some((v) =>
-      v.options?.every((o) => tentative[o.option_id] === o.value)
+      (product.options ?? []).every((option) => {
+        const selected = tentative[option.id]
+        if (!selected) return true
+        const varValue =
+          v.options?.find((o) => o.option_id === option.id)?.value ??
+          v.options?.find((o) => option.values?.some((v2) => v2.value === o.value))?.value
+        return varValue === selected
+      })
     ) ?? false
   }
 
   const variantExists = product.variants?.some((v) =>
-    v.options?.every((o) => selectedValues[o.option_id] === o.value)
+    (product.options ?? []).every((option) => {
+      const selected = selectedValues[option.id]
+      if (!selected) return true
+      const varValue =
+        v.options?.find((o) => o.option_id === option.id)?.value ??
+        v.options?.find((o) => option.values?.some((v2) => v2.value === o.value))?.value
+      return varValue === selected
+    })
   ) ?? true
 
   return (
@@ -216,7 +239,6 @@ export function ProductDetail({ product, pricingTiers }: Props) {
 
         {/* Selectores de variante */}
         {product.options?.map((option) => {
-          const isColor = isColorOption(option.title)
           return (
             <div key={option.id}>
               <p className="text-sm font-semibold text-gray-700 mb-2">
@@ -226,17 +248,21 @@ export function ProductDetail({ product, pricingTiers }: Props) {
                 )}
               </p>
               <div className="flex flex-wrap gap-2">
-                {option.values.map((val) => {
+                {(option.values ?? []).map((val) => {
                   const isSelected = selectedValues[option.id] === val.value
                   const available = isValueAvailable(option.id, val.value)
 
-                  // Para opciones de color: intentar mostrar color como swatch si hay hex en metadata
-                  const matchingVariant = product.variants?.find((v) =>
-                    v.options?.some((o) => o.option_id === option.id && o.value === val.value)
-                  )
-                  const colorHex = isColor
-                    ? (matchingVariant?.metadata as { color_hex?: string } | null)?.color_hex
-                    : null
+                  // Muestra círculo de color si el variant tiene color_hex en metadata,
+                  // sin importar el nombre de la opción. Fallback a match por value si
+                  // Medusa no devuelve option_id en variants.options.
+                  const matchingVariant =
+                    product.variants?.find((v) =>
+                      v.options?.some((o) => o.option_id === option.id && o.value === val.value)
+                    ) ?? product.variants?.find((v) =>
+                      v.options?.some((o) => o.value === val.value)
+                    )
+                  const colorHex =
+                    (matchingVariant?.metadata as { color_hex?: string } | null)?.color_hex ?? null
 
                   return (
                     <button

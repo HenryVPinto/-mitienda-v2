@@ -16,7 +16,8 @@ async function getPage(slug: string): Promise<CmsPage | null> {
 }
 
 export default async function CmsPageRoute({ params }: Props) {
-  const { slug } = await params
+  const { slug: rawSlug } = await params
+  const slug = decodeURIComponent(rawSlug)
   const page = await getPage(slug)
 
   if (!page || !page.is_published) notFound()
