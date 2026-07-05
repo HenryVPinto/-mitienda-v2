@@ -1,0 +1,54 @@
+diff --git a/node_modules/@medusajs/dashboard/src/routes/products/product-create/components/product-create-details-form/components/product-create-details-variant-section/product-create-details-variant-section.tsx b/node_modules/@medusajs/dashboard/src/routes/products/product-create/components/product-create-details-form/components/product-create-details-variant-section/product-create-details-variant-section.tsx
+index e7e138a..3c858d4 100644
+--- a/node_modules/@medusajs/dashboard/src/routes/products/product-create/components/product-create-details-form/components/product-create-details-variant-section/product-create-details-variant-section.tsx
++++ b/node_modules/@medusajs/dashboard/src/routes/products/product-create/components/product-create-details-form/components/product-create-details-variant-section/product-create-details-variant-section.tsx
+@@ -408,19 +408,19 @@ export const ProductCreateVariantsSection = ({
+   const createDefaultOptionAndVariant = () => {
+     form.setValue("options", [
+       {
+-        title: "Default option",
+-        values: ["Default option value"],
++        title: "Tipo",
++        values: ["Estándar"],
+       },
+     ])
+     form.setValue(
+       "variants",
+       decorateVariantsWithDefaultValues([
+         {
+-          title: "Default variant",
++          title: "Estándar",
+           should_create: true,
+           variant_rank: 0,
+           options: {
+-            "Default option": "Default option value",
++            "Tipo": "Estándar",
+           },
+           inventory: [{ inventory_item_id: "", required_quantity: "" }],
+           is_default: true,
+diff --git a/node_modules/@medusajs/dashboard/src/routes/products/product-create/constants.ts b/node_modules/@medusajs/dashboard/src/routes/products/product-create/constants.ts
+index 1d8ca40..662dd51 100644
+--- a/node_modules/@medusajs/dashboard/src/routes/products/product-create/constants.ts
++++ b/node_modules/@medusajs/dashboard/src/routes/products/product-create/constants.ts
+@@ -128,17 +128,17 @@ export const PRODUCT_CREATE_FORM_DEFAULTS: Partial<
+   sales_channels: [],
+   options: [
+     {
+-      title: "Default option",
+-      values: ["Default option value"],
++      title: "Tipo",
++      values: ["Estándar"],
+     },
+   ],
+   variants: decorateVariantsWithDefaultValues([
+     {
+-      title: "Default variant",
++      title: "Estándar",
+       should_create: true,
+       variant_rank: 0,
+       options: {
+-        "Default option": "Default option value",
++        "Tipo": "Estándar",
+       },
+       inventory: [{ inventory_item_id: "", required_quantity: "" }],
+       is_default: true,
