@@ -15,7 +15,7 @@ type Props = {
   pricingTiers: PricingTier[]
 }
 
-const METADATA_SKIP = new Set(["color_hex"])
+const METADATA_SKIP = new Set(["color_hex", "is_featured", "compare_at_price", "sale_price"])
 
 function buildAttributes(product: Product): { label: string; value: string }[] {
   const rows: { label: string; value: string }[] = []
@@ -42,7 +42,7 @@ function buildAttributes(product: Product): { label: string; value: string }[] {
   const meta = product.metadata
   if (meta && typeof meta === "object") {
     Object.entries(meta).forEach(([k, v]) => {
-      if (!METADATA_SKIP.has(k) && v != null && v !== "") {
+      if (!METADATA_SKIP.has(k) && v != null && v !== "" && typeof v !== "boolean") {
         rows.push({ label: k.replace(/_/g, " "), value: String(v) })
       }
     })

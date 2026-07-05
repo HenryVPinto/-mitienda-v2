@@ -58,12 +58,6 @@ export function ProductCard({ product }: Props) {
               {product.mt_vendor.name}
             </Badge>
           )}
-          {/* Badge marca */}
-          {product.mt_brand && !product.mt_vendor && (
-            <Badge variant="secondary" className="absolute top-2 left-2 text-xs px-1.5 py-0.5">
-              {product.mt_brand.name}
-            </Badge>
-          )}
           {/* Badge oferta */}
           {originalPrice != null && (
             <span className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">

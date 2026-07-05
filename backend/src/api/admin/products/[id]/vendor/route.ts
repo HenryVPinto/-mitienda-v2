@@ -29,11 +29,22 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   const remoteLink = req.scope.resolve(ContainerRegistrationKeys.REMOTE_LINK)
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  await remoteLink.dismiss({
-    [Modules.PRODUCT]: { product_id: id },
-    [VENDOR_MODULE]: {},
-  }).catch(() => {})
+  // Leer el vendor actual para hacer dismiss con el ID exacto (evita fallo con objeto vacío)
+  const { data: products } = await query.graph({
+    entity: "product",
+    fields: ["id", "mt_vendor.*"],
+    filters: { id },
+  })
+  const existingVendor = (products[0] as any)?.mt_vendor
+
+  if (existingVendor?.id) {
+    await remoteLink.dismiss({
+      [Modules.PRODUCT]: { product_id: id },
+      [VENDOR_MODULE]: { mt_vendor_id: existingVendor.id },
+    }).catch(() => {})
+  }
 
   await remoteLink.create({
     [Modules.PRODUCT]: { product_id: id },

@@ -112,7 +112,7 @@ export default async function ProductPage({ params }: Props) {
         <div className="mt-10">
           <Separator className="mb-6" />
           <h2 className="text-lg font-bold text-gray-800 mb-3">Descripción del producto</h2>
-          {product.description.trimStart().startsWith("<") ? (
+          {/<[a-z]/i.test(product.description) ? (
             <div
               className="rich-description text-gray-600 text-sm"
               dangerouslySetInnerHTML={{ __html: product.description }}
