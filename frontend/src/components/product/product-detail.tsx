@@ -15,7 +15,7 @@ type Props = {
   pricingTiers: PricingTier[]
 }
 
-const METADATA_SKIP = new Set(["color_hex", "is_featured", "compare_at_price", "sale_price", "video_url", "promo_rule_ids"])
+const METADATA_SKIP = new Set(["color_hex", "is_featured", "compare_at_price", "sale_price", "video_url", "promo_rule_ids", "weight_unit"])
 
 function detectVideoPlatform(url: string): "youtube" | "tiktok" | null {
   if (/youtube\.com|youtu\.be/.test(url)) return "youtube"
@@ -46,10 +46,18 @@ function buildAttributes(product: Product): { label: string; value: string }[] {
 
   const weight = product.weight ?? product.mt_product_extension?.weight
   if (weight) {
-    rows.push({
-      label: "Peso",
-      value: weight >= 1000 ? `${(weight / 1000).toFixed(2).replace(/\.00$/, "")} kg` : `${weight} g`,
-    })
+    const unit = (product.metadata?.weight_unit as string | undefined) ?? "g"
+    let weightValue: string
+    if (unit === "lb") {
+      weightValue = `${(weight / 453.592).toFixed(2).replace(/\.00$/, "")} lb`
+    } else if (unit === "oz") {
+      weightValue = `${(weight / 28.3495).toFixed(2).replace(/\.00$/, "")} oz`
+    } else if (unit === "kg" || weight >= 1000) {
+      weightValue = `${(weight / 1000).toFixed(2).replace(/\.00$/, "")} kg`
+    } else {
+      weightValue = `${weight} g`
+    }
+    rows.push({ label: "Peso", value: weightValue })
   }
 
   if (product.height || product.width || product.length) {
