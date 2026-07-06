@@ -47,17 +47,7 @@ function buildAttributes(product: Product): { label: string; value: string }[] {
   const weight = product.weight ?? product.mt_product_extension?.weight
   if (weight) {
     const unit = (product.metadata?.weight_unit as string | undefined) ?? "g"
-    let weightValue: string
-    if (unit === "lb") {
-      weightValue = `${(weight / 453.592).toFixed(2).replace(/\.00$/, "")} lb`
-    } else if (unit === "oz") {
-      weightValue = `${(weight / 28.3495).toFixed(2).replace(/\.00$/, "")} oz`
-    } else if (unit === "kg" || weight >= 1000) {
-      weightValue = `${(weight / 1000).toFixed(2).replace(/\.00$/, "")} kg`
-    } else {
-      weightValue = `${weight} g`
-    }
-    rows.push({ label: "Peso", value: weightValue })
+    rows.push({ label: "Peso", value: `${weight} ${unit}` })
   }
 
   if (product.height || product.width || product.length) {
