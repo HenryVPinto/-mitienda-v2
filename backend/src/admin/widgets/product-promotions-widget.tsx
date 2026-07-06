@@ -35,62 +35,33 @@ const ProductPromotionsWidget = ({ data }: Props) => {
 
   const [linkedRules, setLinkedRules] = useState<PromoRule[]>([])
   const [allRules, setAllRules] = useState<PromoRule[]>([])
+  const [productMeta, setProductMeta] = useState<Record<string, unknown>>({})
   const [loading, setLoading] = useState(true)
   const [linking, setLinking] = useState(false)
   const [selectedRuleId, setSelectedRuleId] = useState("")
   const [saving, setSaving] = useState(false)
 
-  const fetchLinkedRules = async () => {
-    try {
-      const res = await fetch(
-        `${base}/admin/products/${productId}/relations`,
-        { credentials: "include" }
-      )
-      const data = await res.json()
-      // For now show count from relations — full list via promotion-rules endpoint
-      setLinkedRules([])
-    } catch {
-      // silently ignore
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchAllRules = async () => {
-    try {
-      const res = await fetch(`${base}/admin/promotion-rules?is_active=true`, {
-        credentials: "include",
-      })
-      const data = await res.json()
-      setAllRules(data.promotion_rules ?? [])
-    } catch {
-      // silently ignore
-    }
-  }
-
-  // Fetch rules linked to this product via the products endpoint of each rule
-  const fetchProductRules = async () => {
+  const fetchData = async () => {
     setLoading(true)
     try {
-      const res = await fetch(`${base}/admin/promotion-rules`, {
-        credentials: "include",
-      })
-      const data = await res.json()
-      const all: PromoRule[] = data.promotion_rules ?? []
+      const [productRes, rulesRes] = await Promise.all([
+        fetch(`${base}/admin/products/${productId}?fields=id,metadata`, { credentials: "include" }),
+        fetch(`${base}/admin/promotion-rules`, { credentials: "include" }),
+      ])
 
-      // Check which rules have this product linked
-      const linked: PromoRule[] = []
-      for (const rule of all) {
-        const r = await fetch(
-          `${base}/admin/promotion-rules/${rule.id}/products`,
-          { credentials: "include" }
-        )
-        const rd = await r.json()
-        const products: { id: string }[] = rd.products ?? []
-        if (products.some((p) => p.id === productId)) {
-          linked.push(rule)
-        }
-      }
+      const productData = await productRes.json()
+      const rulesData = await rulesRes.json()
+
+      const meta: Record<string, unknown> = productData.product?.metadata ?? {}
+      const ruleIds: string[] = Array.isArray(meta.promo_rule_ids)
+        ? (meta.promo_rule_ids as string[])
+        : []
+
+      const all: PromoRule[] = rulesData.promotion_rules ?? []
+      const linked = all.filter((r) => ruleIds.includes(r.id))
+
+      setProductMeta(meta)
+      setAllRules(all)
       setLinkedRules(linked)
     } catch {
       // silently ignore
@@ -100,11 +71,10 @@ const ProductPromotionsWidget = ({ data }: Props) => {
   }
 
   useEffect(() => {
-    fetchProductRules()
+    fetchData()
   }, [productId])
 
-  const handleStartLink = async () => {
-    await fetchAllRules()
+  const handleStartLink = () => {
     setSelectedRuleId("")
     setLinking(true)
   }
@@ -113,19 +83,23 @@ const ProductPromotionsWidget = ({ data }: Props) => {
     if (!selectedRuleId) return
     setSaving(true)
     try {
-      const res = await fetch(
-        `${base}/admin/promotion-rules/${selectedRuleId}/products`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ product_id: productId }),
-        }
-      )
+      const currentIds: string[] = Array.isArray(productMeta.promo_rule_ids)
+        ? (productMeta.promo_rule_ids as string[])
+        : []
+
+      const newIds = [...currentIds, selectedRuleId]
+
+      const res = await fetch(`${base}/admin/products/${productId}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ metadata: { ...productMeta, promo_rule_ids: newIds } }),
+      })
+
       if (!res.ok) throw new Error()
       toast.success("Regla vinculada")
       setLinking(false)
-      fetchProductRules()
+      fetchData()
     } catch {
       toast.error("Error al vincular regla")
     } finally {
@@ -135,12 +109,22 @@ const ProductPromotionsWidget = ({ data }: Props) => {
 
   const handleUnlink = async (ruleId: string) => {
     try {
-      await fetch(
-        `${base}/admin/promotion-rules/${ruleId}/products/${productId}`,
-        { method: "DELETE", credentials: "include" }
-      )
+      const currentIds: string[] = Array.isArray(productMeta.promo_rule_ids)
+        ? (productMeta.promo_rule_ids as string[])
+        : []
+
+      const newIds = currentIds.filter((id) => id !== ruleId)
+
+      const res = await fetch(`${base}/admin/products/${productId}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ metadata: { ...productMeta, promo_rule_ids: newIds } }),
+      })
+
+      if (!res.ok) throw new Error()
       toast.success("Regla desvinculada")
-      fetchProductRules()
+      fetchData()
     } catch {
       toast.error("Error al desvincular")
     }
@@ -170,7 +154,7 @@ const ProductPromotionsWidget = ({ data }: Props) => {
               </Select.Trigger>
               <Select.Content>
                 {allRules
-                  .filter((r) => !linkedRules.some((l) => l.id === r.id))
+                  .filter((r) => r.is_active && !linkedRules.some((l) => l.id === r.id))
                   .map((r) => (
                     <Select.Item key={r.id} value={r.id}>
                       {r.name}

@@ -15,7 +15,7 @@ type Props = {
   pricingTiers: PricingTier[]
 }
 
-const METADATA_SKIP = new Set(["color_hex", "is_featured", "compare_at_price", "sale_price", "video_url"])
+const METADATA_SKIP = new Set(["color_hex", "is_featured", "compare_at_price", "sale_price", "video_url", "promo_rule_ids"])
 
 function detectVideoPlatform(url: string): "youtube" | "tiktok" | null {
   if (/youtube\.com|youtu\.be/.test(url)) return "youtube"

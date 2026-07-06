@@ -1,5 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { PROMOTION_ENGINE_MODULE } from "../../../../modules/promotion-engine"
 
 type CartItem = {
   product_id: string
@@ -27,35 +28,65 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const promoService: any = req.scope.resolve(PROMOTION_ENGINE_MODULE)
   const now = new Date()
 
-  // Medusa's graph can't traverse product→mt_promo_rule, but CAN go mt_promo_rule→product.
-  // Fetch all rules with their linked product IDs in one query, then build a map.
-  const { data: allRules } = await query.graph({
-    entity: "mt_promo_rule",
-    fields: [
-      "id", "name", "type", "is_active",
-      "starts_at", "ends_at",
-      "min_quantity", "discount_percentage", "discount_amount",
-      "gift_product_id", "gift_quantity",
-      "product.id",
-    ],
+  const cartProductIds = items.map((i) => i.product_id)
+
+  // Fetch metadata for all cart products in one query
+  const { data: products } = await query.graph({
+    entity: "product",
+    fields: ["id", "metadata"],
+    filters: { id: cartProductIds },
   })
 
-  const cartProductIds = new Set(items.map((i) => i.product_id))
-  const productRulesMap: Record<string, any[]> = {}
+  // Build map: productId -> metadata
+  const productMetaMap: Record<string, any> = {}
+  for (const product of products) {
+    productMetaMap[(product as any).id] = (product as any).metadata ?? {}
+  }
 
+  // Collect all unique rule IDs across all cart items
+  const allRuleIdsSet = new Set<string>()
+  for (const item of items) {
+    const ruleIds: string[] = productMetaMap[item.product_id]?.promo_rule_ids ?? []
+    for (const id of ruleIds) {
+      allRuleIdsSet.add(id)
+    }
+  }
+
+  const allRuleIds = Array.from(allRuleIdsSet)
+
+  if (!allRuleIds.length) {
+    return res.json({
+      applicable_promotions: [],
+      total_savings: 0,
+      policy: "best_applies",
+    })
+  }
+
+  // Fetch all relevant rules at once
+  const allRules: any[] = await promoService.listMtPromoRules({ id: allRuleIds })
+
+  // Build active rules map filtered by date range
+  const activeRulesMap: Record<string, any> = {}
   for (const rule of allRules) {
-    const r = rule as any
-    if (!r.is_active) continue
-    if (r.starts_at && new Date(r.starts_at) > now) continue
-    if (r.ends_at && new Date(r.ends_at) < now) continue
+    if (!rule.is_active) continue
+    if (rule.starts_at && new Date(rule.starts_at) > now) continue
+    if (rule.ends_at && new Date(rule.ends_at) < now) continue
+    activeRulesMap[rule.id] = rule
+  }
 
-    const linkedProducts = Array.isArray(r.product) ? r.product : r.product ? [r.product] : []
-    for (const p of linkedProducts) {
-      if (!cartProductIds.has(p.id)) continue
-      if (!productRulesMap[p.id]) productRulesMap[p.id] = []
-      productRulesMap[p.id].push(r)
+  // Build productRulesMap: productId -> active rules[]
+  const cartProductIdSet = new Set(cartProductIds)
+  const productRulesMap: Record<string, any[]> = {}
+  for (const item of items) {
+    const ruleIds: string[] = productMetaMap[item.product_id]?.promo_rule_ids ?? []
+    for (const ruleId of ruleIds) {
+      const rule = activeRulesMap[ruleId]
+      if (!rule) continue
+      if (!productRulesMap[item.product_id]) productRulesMap[item.product_id] = []
+      productRulesMap[item.product_id].push(rule)
     }
   }
 
@@ -106,18 +137,18 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       }
 
       if (rule.type === "COMBO" && !processedComboIds.has(rule.id)) {
-        // Get all products linked to this combo rule
-        const { data: comboRules } = await query.graph({
-          entity: "mt_promo_rule",
-          fields: ["id", "product.id"],
-          filters: { id: rule.id },
-        })
+        // Get all products linked to this combo rule via their metadata
+        // Collect all product IDs that have this rule in their promo_rule_ids
+        const comboProductIds: string[] = []
+        for (const [pid, meta] of Object.entries(productMetaMap)) {
+          const ruleIds: string[] = (meta as any)?.promo_rule_ids ?? []
+          if (ruleIds.includes(rule.id) && cartProductIdSet.has(pid)) {
+            comboProductIds.push(pid)
+          }
+        }
 
-        const comboProductIds: string[] =
-          ((comboRules[0] as any)?.product ?? []).map((p: any) => p.id)
-
-        const allPresent = comboProductIds.every((pid) => cartProductIds.has(pid))
-        if (!allPresent) continue
+        const allPresent = comboProductIds.every((pid) => cartProductIdSet.has(pid))
+        if (!allPresent || comboProductIds.length === 0) continue
 
         const comboSubtotal = comboProductIds.reduce((sum, pid) => {
           const it = items.find((i) => i.product_id === pid)
