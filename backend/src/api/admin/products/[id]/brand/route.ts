@@ -29,12 +29,21 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   const remoteLink = req.scope.resolve(ContainerRegistrationKeys.REMOTE_LINK)
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  // Dismiss any existing brand link first
-  await remoteLink.dismiss({
-    [Modules.PRODUCT]: { product_id: id },
-    [BRAND_MODULE]: {},
-  }).catch(() => {})
+  // Get current brand to dismiss by ID
+  const { data: products } = await query.graph({
+    entity: "product",
+    fields: ["id", "mt_brand.*"],
+    filters: { id },
+  })
+  const currentBrand = (products[0] as any)?.mt_brand
+  if (currentBrand?.id) {
+    await remoteLink.dismiss({
+      [Modules.PRODUCT]: { product_id: id },
+      [BRAND_MODULE]: { mt_brand_id: currentBrand.id },
+    }).catch(() => {})
+  }
 
   await remoteLink.create({
     [Modules.PRODUCT]: { product_id: id },
