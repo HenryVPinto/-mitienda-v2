@@ -61,6 +61,7 @@ export type Category = {
   parent_category_id?: string | null
   category_children?: Category[]
   metadata?: Record<string, unknown> | null
+  rank?: number | null
 }
 
 export type Brand = {

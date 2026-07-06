@@ -83,9 +83,10 @@ async function getCategories(): Promise<Category[]> {
   try {
     const data = await storeGet<{ product_categories: Category[] }>(
       "/store/product-categories",
-      { parent_category_id: "null", limit: "12" }
+      { parent_category_id: "null", limit: "12", fields: "id,name,handle,description,metadata,rank" }
     )
-    return data.product_categories ?? []
+    const cats = data.product_categories ?? []
+    return cats.sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999))
   } catch {
     return []
   }
