@@ -21,7 +21,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const activeTiers = rules
     .filter((r: any) => {
       if (!r.is_active) return false
-      if (r.type !== "QUANTITY_DISCOUNT") return false
+      if (r.type !== "QUANTITY_DISCOUNT" && r.type !== "WHOLESALE") return false
       if (r.starts_at && new Date(r.starts_at) > now) return false
       if (r.ends_at && new Date(r.ends_at) < now) return false
       return true
