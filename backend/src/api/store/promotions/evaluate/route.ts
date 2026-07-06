@@ -29,31 +29,36 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const now = new Date()
 
-  // Get linked promo rules for each product in the cart
+  // Medusa's graph can't traverse product→mt_promo_rule, but CAN go mt_promo_rule→product.
+  // Fetch all rules with their linked product IDs in one query, then build a map.
+  const { data: allRules } = await query.graph({
+    entity: "mt_promo_rule",
+    fields: [
+      "id", "name", "type", "is_active",
+      "starts_at", "ends_at",
+      "min_quantity", "discount_percentage", "discount_amount",
+      "gift_product_id", "gift_quantity",
+      "product.id",
+    ],
+  })
+
+  const cartProductIds = new Set(items.map((i) => i.product_id))
   const productRulesMap: Record<string, any[]> = {}
 
-  for (const item of items) {
-    const { data: products } = await query.graph({
-      entity: "product",
-      fields: ["id", "mt_promo_rule.*"],
-      filters: { id: item.product_id },
-    })
+  for (const rule of allRules) {
+    const r = rule as any
+    if (!r.is_active) continue
+    if (r.starts_at && new Date(r.starts_at) > now) continue
+    if (r.ends_at && new Date(r.ends_at) < now) continue
 
-    if (products.length) {
-      const raw = (products[0] as any).mt_promo_rule
-      const asArray = Array.isArray(raw) ? raw : raw ? [raw] : []
-      productRulesMap[item.product_id] = asArray.filter((r: any) => {
-        if (!r.is_active) return false
-        if (r.starts_at && new Date(r.starts_at) > now) return false
-        if (r.ends_at && new Date(r.ends_at) < now) return false
-        return true
-      })
-    } else {
-      productRulesMap[item.product_id] = []
+    const linkedProducts = Array.isArray(r.product) ? r.product : r.product ? [r.product] : []
+    for (const p of linkedProducts) {
+      if (!cartProductIds.has(p.id)) continue
+      if (!productRulesMap[p.id]) productRulesMap[p.id] = []
+      productRulesMap[p.id].push(r)
     }
   }
 
-  const cartProductIds = new Set(items.map((i) => i.product_id))
   const applicable: AppliedPromotion[] = []
   const processedComboIds = new Set<string>()
 
