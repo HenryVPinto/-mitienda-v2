@@ -15,6 +15,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.json({ tiers: [] })
   }
 
+  console.log(`[pricing-tiers] full product object keys:`, Object.keys(products[0] as any))
+  console.log(`[pricing-tiers] full product:`, JSON.stringify(products[0]))
+
   const raw = (products[0] as any).mt_promo_rule
   const rules = Array.isArray(raw) ? raw : raw ? [raw] : []
 
