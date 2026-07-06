@@ -92,7 +92,7 @@ const RuleFields = ({
         />
       </div>
     )}
-    {f.type === "QUANTITY_DISCOUNT" && (
+    {(f.type === "QUANTITY_DISCOUNT" || f.type === "WHOLESALE") && (
       <div className="flex flex-col gap-y-1">
         <Label size="small">Descuento (%)</Label>
         <Input
