@@ -18,6 +18,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const raw = (products[0] as any).mt_promo_rule
   const rules = Array.isArray(raw) ? raw : raw ? [raw] : []
 
+  console.log(`[pricing-tiers] product=${req.params.id} rules_found=${rules.length}`, JSON.stringify(rules))
+
   const activeTiers = rules
     .filter((r: any) => {
       if (!r.is_active) return false
