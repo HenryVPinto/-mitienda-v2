@@ -98,9 +98,15 @@ const ProductBatchVariantsWidget = ({ data }: Props) => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ title, options: optionCombo }),
+          body: JSON.stringify({ title, options: optionCombo, prices: [] }),
         })
-        if (res.ok) { created++ } else { failed++ }
+        if (res.ok) {
+          created++
+        } else {
+          failed++
+          const errBody = await res.json().catch(() => ({}))
+          console.error("Error creando variante:", title, res.status, errBody)
+        }
       }
       if (created > 0) toast.success(`${created} variante(s) creada(s)`)
       if (failed > 0) toast.error(`${failed} variante(s) fallaron`)
