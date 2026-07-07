@@ -6,6 +6,9 @@ export type CreateShippingRuleInput = {
   max_order_amount?: number
   flat_rate?: number
   free_above_amount?: number
+  weight_threshold_lbs?: number | null
+  rate_per_lb?: number | null
+  min_item_quantity?: number | null
   is_active?: boolean
   priority?: number
   metadata?: Record<string, unknown>
