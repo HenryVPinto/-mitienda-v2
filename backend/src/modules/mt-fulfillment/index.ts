@@ -169,5 +169,5 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
   }
 }
 
-// Medusa espera un array iterable de providers al cargar el módulo
-export default [MtFulfillmentProviderService]
+// module-provider-loader espera { services: [...] } y load-internal espera loadedProvider_.services iterable
+export default { services: [MtFulfillmentProviderService] }
