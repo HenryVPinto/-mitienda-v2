@@ -1,3 +1,183 @@
+diff --git a/node_modules/@medusajs/dashboard/src/routes/products/product-create-variant/components/create-product-variant-form/constants.ts b/node_modules/@medusajs/dashboard/src/routes/products/product-create-variant/components/create-product-variant-form/constants.ts
+index a497b50..150703b 100644
+--- a/node_modules/@medusajs/dashboard/src/routes/products/product-create-variant/components/create-product-variant-form/constants.ts
++++ b/node_modules/@medusajs/dashboard/src/routes/products/product-create-variant/components/create-product-variant-form/constants.ts
+@@ -3,12 +3,12 @@ import * as zod from "zod"
+ import { optionalInt } from "../../../../../lib/validation"
+ 
+ export const CreateProductVariantSchema = z.object({
+-  title: z.string().min(1),
++  title: z.string().optional(),
+   sku: z.string().optional(),
+   manage_inventory: z.boolean().optional(),
+   allow_backorder: z.boolean().optional(),
+   inventory_kit: z.boolean().optional(),
+-  options: z.record(z.string(), z.string()),
++  options: z.record(z.string(), z.union([z.string(), z.array(z.string())])),
+   prices: zod
+     .record(zod.string(), zod.string().or(zod.number()).optional())
+     .optional(),
+diff --git a/node_modules/@medusajs/dashboard/src/routes/products/product-create-variant/components/create-product-variant-form/create-product-variant-form.tsx b/node_modules/@medusajs/dashboard/src/routes/products/product-create-variant/components/create-product-variant-form/create-product-variant-form.tsx
+index 18c38a0..eca8a76 100644
+--- a/node_modules/@medusajs/dashboard/src/routes/products/product-create-variant/components/create-product-variant-form/create-product-variant-form.tsx
++++ b/node_modules/@medusajs/dashboard/src/routes/products/product-create-variant/components/create-product-variant-form/create-product-variant-form.tsx
+@@ -200,59 +200,66 @@ export const CreateProductVariantForm = ({
+     handleChangeTab(nextTab)
+   }
+ 
++  const getPermutations = (optionMap: Record<string, string[]>): Record<string, string>[] => {
++    const keys = Object.keys(optionMap)
++    if (keys.length === 0) return [{}]
++    const [first, ...rest] = keys
++    const restPerms = getPermutations(Object.fromEntries(rest.map((k) => [k, optionMap[k]])))
++    return optionMap[first].flatMap((v) => restPerms.map((perm) => ({ [first]: v, ...perm })))
++  }
++
+   const handleSubmit = form.handleSubmit(async (data) => {
+     const { allow_backorder, manage_inventory, sku, title } = data
+ 
+-    await mutateAsync(
+-      {
+-        title,
+-        sku: sku || undefined,
+-        allow_backorder,
+-        manage_inventory,
+-        options: data.options,
+-        prices: Object.entries(data.prices ?? {})
+-          .map(([currencyOrRegion, value]) => {
+-            if (value === "" || value === undefined) {
+-              return undefined
+-            }
+-
+-            const ret: Partial<AdminCreateProductVariantPrice> = {}
+-            const amount = castNumber(value)
+-
+-            if (currencyOrRegion.startsWith("reg_")) {
+-              ret.rules = { region_id: currencyOrRegion }
+-              ret.currency_code = regionsCurrencyMap[currencyOrRegion]
+-            } else {
+-              ret.currency_code = currencyOrRegion
+-            }
+-
+-            ret.amount = amount
+-
+-            return ret as AdminCreateProductVariantPrice
+-          })
+-          .filter(Boolean) as AdminCreateProductVariantPrice[],
+-        inventory_items: (data.inventory || [])
+-          .map((i) => {
+-            if (!i.required_quantity || !i.inventory_item_id) {
+-              return false
+-            }
+-
+-            return {
+-              ...i,
+-              required_quantity: castNumber(i.required_quantity),
+-            }
+-          })
+-          .filter(Boolean),
+-      },
+-      {
+-        onSuccess: () => {
+-          handleSuccess()
+-        },
+-        onError: (error) => {
+-          toast.error(error.message)
+-        },
+-      }
++    const normalizedOptions: Record<string, string[]> = Object.fromEntries(
++      Object.entries(data.options).map(([k, v]) => [k, Array.isArray(v) ? v : (v ? [v] : [])])
+     )
++    const permutations = getPermutations(normalizedOptions)
++
++    const buildPrices = () =>
++      Object.entries(data.prices ?? {})
++        .map(([currencyOrRegion, value]) => {
++          if (value === "" || value === undefined) return undefined
++          const ret: Partial<AdminCreateProductVariantPrice> = {}
++          const amount = castNumber(value)
++          if (currencyOrRegion.startsWith("reg_")) {
++            ret.rules = { region_id: currencyOrRegion }
++            ret.currency_code = regionsCurrencyMap[currencyOrRegion]
++          } else {
++            ret.currency_code = currencyOrRegion
++          }
++          ret.amount = amount
++          return ret as AdminCreateProductVariantPrice
++        })
++        .filter(Boolean) as AdminCreateProductVariantPrice[]
++
++    const buildInventory = () =>
++      (data.inventory || [])
++        .map((i) => {
++          if (!i.required_quantity || !i.inventory_item_id) return false
++          return { ...i, required_quantity: castNumber(i.required_quantity) }
++        })
++        .filter(Boolean)
++
++    try {
++      for (const optionCombo of permutations) {
++        const variantTitle = permutations.length === 1 && title
++          ? title
++          : Object.values(optionCombo).join(" / ")
++        await mutateAsync({
++          title: variantTitle,
++          sku: permutations.length === 1 ? (sku || undefined) : undefined,
++          allow_backorder,
++          manage_inventory,
++          options: optionCombo,
++          prices: buildPrices(),
++          inventory_items: buildInventory(),
++        })
++      }
++      handleSuccess()
++    } catch (error: any) {
++      toast.error(error.message)
++    }
+   })
+ 
+   return (
+diff --git a/node_modules/@medusajs/dashboard/src/routes/products/product-create-variant/components/create-product-variant-form/details-tab.tsx b/node_modules/@medusajs/dashboard/src/routes/products/product-create-variant/components/create-product-variant-form/details-tab.tsx
+index dcdf2ce..db9da95 100644
+--- a/node_modules/@medusajs/dashboard/src/routes/products/product-create-variant/components/create-product-variant-form/details-tab.tsx
++++ b/node_modules/@medusajs/dashboard/src/routes/products/product-create-variant/components/create-product-variant-form/details-tab.tsx
+@@ -34,9 +34,9 @@ function DetailsTab({ form, product }: DetailsTabProps) {
+             render={({ field }) => {
+               return (
+                 <Form.Item>
+-                  <Form.Label>{t("fields.title")}</Form.Label>
++                  <Form.Label optional>{t("fields.title")}</Form.Label>
+                   <Form.Control>
+-                    <Input {...field} />
++                    <Input {...field} value={field.value ?? ""} placeholder="Auto (valores de opciones)" />
+                   </Form.Control>
+                   <Form.ErrorMessage />
+                 </Form.Item>
+@@ -66,20 +66,20 @@ function DetailsTab({ form, product }: DetailsTabProps) {
+               control={form.control}
+               name={`options.${option.title}`}
+               render={({ field: { value, onChange, ...field } }) => {
++                const arrValue = Array.isArray(value) ? value : (value ? [value] : [])
+                 return (
+                   <Form.Item>
+                     <Form.Label>{option.title}</Form.Label>
+                     <Form.Control>
+                       <Combobox
+-                        value={value}
+-                        onChange={(v) => {
+-                          onChange(v)
+-                        }}
++                        value={arrValue}
++                        onChange={(v) => onChange(v as string[])}
+                         {...field}
+                         options={option.values.map((v: any) => ({
+                           label: v.value,
+                           value: v.value,
+                         }))}
++                        displayMode="chips"
+                       />
+                     </Form.Control>
+                   </Form.Item>
 diff --git a/node_modules/@medusajs/dashboard/src/routes/products/product-create/components/product-create-details-form/components/product-create-details-variant-section/product-create-details-variant-section.tsx b/node_modules/@medusajs/dashboard/src/routes/products/product-create/components/product-create-details-form/components/product-create-details-variant-section/product-create-details-variant-section.tsx
 index e7e138a..ea3c374 100644
 --- a/node_modules/@medusajs/dashboard/src/routes/products/product-create/components/product-create-details-form/components/product-create-details-variant-section/product-create-details-variant-section.tsx
