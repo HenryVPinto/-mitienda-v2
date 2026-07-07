@@ -1,13 +1,11 @@
 diff --git a/node_modules/@medusajs/dashboard/src/routes/products/product-create/components/product-create-details-form/components/product-create-details-variant-section/product-create-details-variant-section.tsx b/node_modules/@medusajs/dashboard/src/routes/products/product-create/components/product-create-details-form/components/product-create-details-variant-section/product-create-details-variant-section.tsx
-index e7e138a..3c858d4 100644
+index e7e138a..ea3c374 100644
 --- a/node_modules/@medusajs/dashboard/src/routes/products/product-create/components/product-create-details-form/components/product-create-details-variant-section/product-create-details-variant-section.tsx
 +++ b/node_modules/@medusajs/dashboard/src/routes/products/product-create/components/product-create-details-form/components/product-create-details-variant-section/product-create-details-variant-section.tsx
-@@ -228,15 +228,25 @@ export const ProductCreateVariantsSection = ({
-   const generateAndSetVariants = (options: ProductOptionFormValue[]) => {
-     const permutations = getPermutations(
+@@ -230,13 +230,26 @@ export const ProductCreateVariantsSection = ({
        options.filter(({ values }) => values && values.length > 0)
      )
-
+ 
 -    const newVariants = permutations.map((permutation, index) => ({
 -      title: getVariantName(permutation),
 -      options: permutation,
@@ -35,10 +33,10 @@ index e7e138a..3c858d4 100644
 +        }),
 +      }
 +    })
-
+ 
      form.setValue("variants", newVariants)
    }
-@@ -408,19 +418,19 @@ export const ProductCreateVariantsSection = ({
+@@ -408,19 +421,19 @@ export const ProductCreateVariantsSection = ({
    const createDefaultOptionAndVariant = () => {
      form.setValue("options", [
        {
