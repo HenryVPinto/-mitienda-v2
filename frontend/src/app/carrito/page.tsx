@@ -2,8 +2,10 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { ShoppingCart, Minus, Plus, X, Tag } from "lucide-react"
+import { ShoppingCart, Minus, Plus, X, Tag, Ticket } from "lucide-react"
 import { buttonVariants } from "@/components/ui/button"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { useCart } from "@/context/cart-context"
 import { formatGTQ } from "@/lib/format"
@@ -28,8 +30,39 @@ function getEffectiveUnitPrice(item: LineItem): number {
 }
 
 export default function CartPage() {
-  const { items, total, subtotal, updateItem, removeItem, loading } = useCart()
+  const { items, total, subtotal, discountTotal, updateItem, removeItem, loading,
+          promotions, applyPromoCode, removePromoCode } = useCart()
   const [promos, setPromos] = useState<PromotionsEvaluateResponse | null>(null)
+  const [promoCode, setPromoCode] = useState("")
+  const [promoError, setPromoError] = useState("")
+  const [promoLoading, setPromoLoading] = useState(false)
+
+  async function handleApplyPromo(e: React.FormEvent) {
+    e.preventDefault()
+    if (!promoCode.trim()) return
+    setPromoError("")
+    setPromoLoading(true)
+    try {
+      await applyPromoCode(promoCode)
+      setPromoCode("")
+    } catch (err) {
+      setPromoError(err instanceof Error ? err.message : "Código inválido o no aplicable")
+    } finally {
+      setPromoLoading(false)
+    }
+  }
+
+  async function handleRemovePromo(code: string) {
+    setPromoError("")
+    setPromoLoading(true)
+    try {
+      await removePromoCode(code)
+    } catch {
+      setPromoError("Error al quitar el código")
+    } finally {
+      setPromoLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (!items.length) {
@@ -180,6 +213,49 @@ export default function CartPage() {
             </div>
           )}
 
+          {/* Código de descuento */}
+          <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+            <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+              <Ticket className="w-4 h-4 text-primary" />
+              Código de descuento
+            </h3>
+
+            {/* Cupones aplicados */}
+            {promotions.filter((p) => !p.is_automatic).map((p) => (
+              <div key={p.code} className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                <span className="text-sm font-mono font-semibold text-green-700">{p.code}</span>
+                <button
+                  onClick={() => handleRemovePromo(p.code)}
+                  disabled={promoLoading}
+                  className="text-green-600 hover:text-red-500 disabled:opacity-40 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+
+            <form onSubmit={handleApplyPromo} className="flex gap-2">
+              <Input
+                placeholder="Ingresa tu código"
+                value={promoCode}
+                onChange={(e) => { setPromoCode(e.target.value.toUpperCase()); setPromoError("") }}
+                className="uppercase font-mono text-sm h-9"
+                maxLength={50}
+              />
+              <Button
+                type="submit"
+                size="sm"
+                disabled={promoLoading || !promoCode.trim()}
+                className="h-9 px-4 bg-primary hover:bg-primary/90 shrink-0"
+              >
+                {promoLoading ? "..." : "Aplicar"}
+              </Button>
+            </form>
+            {promoError && (
+              <p className="text-xs text-red-500">{promoError}</p>
+            )}
+          </div>
+
           {/* Totales */}
           <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
             <h2 className="font-bold text-gray-800">Resumen del pedido</h2>
@@ -195,6 +271,12 @@ export default function CartPage() {
                   <span>−{formatGTQ(tierSavings)}</span>
                 </div>
               )}
+              {discountTotal > 0 && (
+                <div className="flex justify-between text-green-600 font-medium">
+                  <span>Desc. cupón</span>
+                  <span>−{formatGTQ(discountTotal)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-gray-600">
                 <span>Envío</span>
                 <span className="text-green-600">A calcular</span>
@@ -203,7 +285,7 @@ export default function CartPage() {
             <Separator />
             <div className="flex justify-between font-bold text-base">
               <span>Total estimado</span>
-              <span className="text-[var(--color-brand-orange)]">{formatGTQ(effectiveTotal)}</span>
+              <span className="text-[var(--color-brand-orange)]">{formatGTQ(effectiveTotal - discountTotal)}</span>
             </div>
             <Link
               href="/checkout"

@@ -1,9 +1,36 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
+import {
+  Laptop, Home, Shirt, Baby, Dumbbell, ShoppingBasket, PawPrint, Wrench,
+  Smartphone, Book, Music, Gamepad2, Car, Flower2, Utensils, Heart, Gem,
+  Briefcase, Camera, Gift, Tag,
+} from "lucide-react"
+import type { LucideProps } from "lucide-react"
 import { storeGet, getDefaultRegionId } from "@/lib/medusa"
 import { ProductCard } from "@/components/product/product-card"
 import { SortSelect } from "@/components/product/sort-select"
 import type { Product, Category } from "@/lib/types"
+
+type IconComponent = React.ComponentType<LucideProps>
+
+const ICON_MAP: Record<string, IconComponent> = {
+  laptop: Laptop, smartphone: Smartphone, home: Home, shirt: Shirt,
+  baby: Baby, dumbbell: Dumbbell, "shopping-basket": ShoppingBasket,
+  "paw-print": PawPrint, wrench: Wrench, book: Book, music: Music,
+  "gamepad-2": Gamepad2, car: Car, "flower-2": Flower2, utensils: Utensils,
+  heart: Heart, gem: Gem, briefcase: Briefcase, camera: Camera, gift: Gift, tag: Tag,
+}
+
+const HANDLE_ICON_MAP: Record<string, IconComponent> = {
+  tecnologia: Laptop, hogar: Home, moda: Shirt, bebes: Baby,
+  deportes: Dumbbell, supermercado: ShoppingBasket, mascotas: PawPrint, ferreteria: Wrench,
+}
+
+function getCategoryIcon(cat: Category): React.ReactNode {
+  const iconName = cat.metadata?.icon as string | undefined
+  const Icon = (iconName && ICON_MAP[iconName]) || HANDLE_ICON_MAP[cat.handle] || ShoppingBasket
+  return <Icon className="w-4 h-4 flex-shrink-0" />
+}
 
 type Props = {
   searchParams: Promise<{ page?: string; sort?: string; category?: string }>
@@ -78,8 +105,9 @@ export default async function CatalogoPage({ searchParams }: Props) {
               <li key={cat.id}>
                 <Link
                   href={`/categoria/${cat.handle}`}
-                  className="block px-3 py-2 rounded-lg text-sm transition-colors text-gray-600 hover:bg-gray-50"
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors text-gray-600 hover:bg-gray-50"
                 >
+                  {getCategoryIcon(cat)}
                   {cat.name}
                 </Link>
               </li>

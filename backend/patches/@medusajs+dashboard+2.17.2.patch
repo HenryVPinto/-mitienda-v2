@@ -2,7 +2,43 @@ diff --git a/node_modules/@medusajs/dashboard/src/routes/products/product-create
 index e7e138a..3c858d4 100644
 --- a/node_modules/@medusajs/dashboard/src/routes/products/product-create/components/product-create-details-form/components/product-create-details-variant-section/product-create-details-variant-section.tsx
 +++ b/node_modules/@medusajs/dashboard/src/routes/products/product-create/components/product-create-details-form/components/product-create-details-variant-section/product-create-details-variant-section.tsx
-@@ -408,19 +408,19 @@ export const ProductCreateVariantsSection = ({
+@@ -228,15 +228,25 @@ export const ProductCreateVariantsSection = ({
+   const generateAndSetVariants = (options: ProductOptionFormValue[]) => {
+     const permutations = getPermutations(
+       options.filter(({ values }) => values && values.length > 0)
+     )
+
+-    const newVariants = permutations.map((permutation, index) => ({
+-      title: getVariantName(permutation),
+-      options: permutation,
+-      should_create: true,
+-      variant_rank: index,
+-      inventory: [{ inventory_item_id: "", required_quantity: "" }],
+-    }))
++    const currentVariants = form.getValues("variants")
++
++    const newVariants = permutations.map((permutation, index) => {
++      const title = getVariantName(permutation)
++      const existing = currentVariants.find((v) => v.title === title)
++      return {
++        title,
++        options: permutation,
++        should_create: true,
++        variant_rank: index,
++        inventory: [{ inventory_item_id: "", required_quantity: "" }],
++        ...(existing && {
++          prices: existing.prices,
++          sku: existing.sku,
++          manage_inventory: existing.manage_inventory,
++          allow_backorder: existing.allow_backorder,
++          should_create: existing.should_create,
++        }),
++      }
++    })
+
+     form.setValue("variants", newVariants)
+   }
+@@ -408,19 +418,19 @@ export const ProductCreateVariantsSection = ({
    const createDefaultOptionAndVariant = () => {
      form.setValue("options", [
        {

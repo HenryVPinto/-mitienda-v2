@@ -145,7 +145,44 @@ export function ProductDetail({ product, pricingTiers }: Props) {
     : baseImages
 
   function select(optionId: string, value: string) {
-    setSelectedValues((prev) => ({ ...prev, [optionId]: value }))
+    const next = { ...selectedValues, [optionId]: value }
+
+    // Helper — resolve a variant's value for a given option
+    const getVarVal = (
+      v: NonNullable<typeof product.variants>[number],
+      opt: NonNullable<typeof product.options>[number]
+    ) =>
+      v.options?.find((o) => o.option_id === opt.id)?.value ??
+      v.options?.find((o) => opt.values?.some((v2) => v2.value === o.value))?.value
+
+    // If the exact combination has a variant, use it directly
+    const valid = product.variants?.some((v) =>
+      (product.options ?? []).every((opt) => {
+        const sel = next[opt.id]
+        return !sel || getVarVal(v, opt) === sel
+      })
+    )
+
+    if (valid) { setSelectedValues(next); return }
+
+    // Combination doesn't exist — auto-select the first variant that carries
+    // the chosen value and adopt its values for every other option.
+    const changedOpt = product.options?.find((opt) => opt.id === optionId)
+    const fallback = product.variants?.find(
+      (v) => changedOpt != null && getVarVal(v, changedOpt) === value
+    )
+
+    if (fallback) {
+      const adjusted: Record<string, string> = { [optionId]: value }
+      product.options?.forEach((opt) => {
+        if (opt.id === optionId) return
+        const val = getVarVal(fallback, opt)
+        if (val) adjusted[opt.id] = val
+      })
+      setSelectedValues(adjusted)
+    } else {
+      setSelectedValues(next)
+    }
   }
 
   // Verificar si una combinación de valores tiene variante disponible
@@ -205,7 +242,7 @@ export function ProductDetail({ product, pricingTiers }: Props) {
               </Badge>
             )
           )}
-          <Badge variant="secondary" className="text-green-700 bg-green-50">NUEVO</Badge>
+
         </div>
 
         <h1 className="text-2xl font-bold text-gray-800 leading-tight">{product.title}</h1>

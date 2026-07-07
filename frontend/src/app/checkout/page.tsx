@@ -16,19 +16,27 @@ type Step = 1 | 2 | 3
 type AddressForm = {
   first_name: string
   last_name: string
-  address_1: string
-  city: string
-  phone: string
   email: string
+  phone: string
+  departamento: string
+  municipio: string
+  direccion: string
+  zona: string
+  aldea: string
+  referencia: string
 }
 
 const EMPTY_ADDRESS: AddressForm = {
   first_name: "",
   last_name: "",
-  address_1: "",
-  city: "",
-  phone: "",
   email: "",
+  phone: "",
+  departamento: "",
+  municipio: "",
+  direccion: "",
+  zona: "",
+  aldea: "",
+  referencia: "",
 }
 
 export default function CheckoutPage() {
@@ -53,10 +61,16 @@ export default function CheckoutPage() {
         shipping_address: {
           first_name: address.first_name,
           last_name: address.last_name,
-          address_1: address.address_1,
-          city: address.city,
+          address_1: address.direccion,
+          city: address.municipio,
+          province: address.departamento,
           phone: address.phone,
           country_code: "gt",
+          metadata: {
+            zona: address.zona || null,
+            aldea: address.aldea || null,
+            referencia: address.referencia || null,
+          },
         },
       })
       const data = await storeGet<{ shipping_options: ShippingOption[] }>(
@@ -156,6 +170,8 @@ export default function CheckoutPage() {
       {step === 1 && (
         <form onSubmit={handleAddressSubmit} className="space-y-4">
           <h2 className="text-lg font-semibold text-gray-700">Dirección de envío</h2>
+
+          {/* Datos del contacto */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-sm text-gray-600 mb-1 block">Nombre</label>
@@ -166,24 +182,47 @@ export default function CheckoutPage() {
               <Input required value={address.last_name} onChange={(e) => setAddress((a) => ({ ...a, last_name: e.target.value }))} />
             </div>
           </div>
-          <div>
-            <label className="text-sm text-gray-600 mb-1 block">Dirección</label>
-            <Input required value={address.address_1} onChange={(e) => setAddress((a) => ({ ...a, address_1: e.target.value }))} />
-          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm text-gray-600 mb-1 block">Ciudad</label>
-              <Input required value={address.city} onChange={(e) => setAddress((a) => ({ ...a, city: e.target.value }))} />
+              <label className="text-sm text-gray-600 mb-1 block">Correo electrónico</label>
+              <Input required type="email" value={address.email} onChange={(e) => setAddress((a) => ({ ...a, email: e.target.value }))} />
             </div>
             <div>
               <label className="text-sm text-gray-600 mb-1 block">Teléfono</label>
-              <Input required type="tel" value={address.phone} onChange={(e) => setAddress((a) => ({ ...a, phone: e.target.value }))} />
+              <Input required type="tel" placeholder="5000-0000" value={address.phone} onChange={(e) => setAddress((a) => ({ ...a, phone: e.target.value }))} />
+            </div>
+          </div>
+
+          {/* Ubicación */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm text-gray-600 mb-1 block">Departamento</label>
+              <Input required placeholder="Ej: Guatemala" value={address.departamento} onChange={(e) => setAddress((a) => ({ ...a, departamento: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-sm text-gray-600 mb-1 block">Municipio</label>
+              <Input required placeholder="Ej: Guatemala" value={address.municipio} onChange={(e) => setAddress((a) => ({ ...a, municipio: e.target.value }))} />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="col-span-2">
+              <label className="text-sm text-gray-600 mb-1 block">Dirección <span className="text-gray-400 font-normal">(calle, avenida, número)</span></label>
+              <Input required placeholder="Ej: 5a Av. 3-12" maxLength={60} value={address.direccion} onChange={(e) => setAddress((a) => ({ ...a, direccion: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-sm text-gray-600 mb-1 block">Zona</label>
+              <Input placeholder="Ej: 10" maxLength={10} value={address.zona} onChange={(e) => setAddress((a) => ({ ...a, zona: e.target.value }))} />
             </div>
           </div>
           <div>
-            <label className="text-sm text-gray-600 mb-1 block">Correo electrónico</label>
-            <Input required type="email" value={address.email} onChange={(e) => setAddress((a) => ({ ...a, email: e.target.value }))} />
+            <label className="text-sm text-gray-600 mb-1 block">Aldea u otro <span className="text-gray-400 font-normal">(colonia, barrio, caserío…)</span></label>
+            <Input placeholder="Ej: Colonia Miraflores" maxLength={60} value={address.aldea} onChange={(e) => setAddress((a) => ({ ...a, aldea: e.target.value }))} />
           </div>
+          <div>
+            <label className="text-sm text-gray-600 mb-1 block">Referencia <span className="text-gray-400 font-normal">(punto de referencia)</span></label>
+            <Input placeholder="Ej: Frente al parque, casa azul" maxLength={120} value={address.referencia} onChange={(e) => setAddress((a) => ({ ...a, referencia: e.target.value }))} />
+          </div>
+
           <Button type="submit" disabled={loading} className="w-full bg-primary hover:bg-primary/90 h-11">
             {loading ? "Guardando..." : "Continuar al envío →"}
           </Button>

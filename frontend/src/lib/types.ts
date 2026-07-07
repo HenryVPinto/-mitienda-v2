@@ -132,6 +132,12 @@ export type LineItem = {
   metadata?: Record<string, unknown> | null
 }
 
+export type CartPromotion = {
+  id: string
+  code: string
+  is_automatic: boolean
+}
+
 export type Cart = {
   id: string
   items: LineItem[]
@@ -144,6 +150,7 @@ export type Cart = {
   email?: string | null
   shipping_address?: Address | null
   completed_at?: string | null
+  promotions?: CartPromotion[]
 }
 
 export type Address = {
