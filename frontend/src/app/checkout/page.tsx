@@ -19,6 +19,7 @@ type AddressForm = {
   last_name: string
   email: string
   phone: string
+  nit: string
   departamento: string
   municipio: string
   direccion: string
@@ -38,7 +39,7 @@ type BankAccount = {
 }
 
 const EMPTY_ADDRESS: AddressForm = {
-  first_name: "", last_name: "", email: "", phone: "",
+  first_name: "", last_name: "", email: "", phone: "", nit: "",
   departamento: "", municipio: "", direccion: "", zona: "", aldea: "", referencia: "",
 }
 
@@ -92,6 +93,7 @@ export default function CheckoutPage() {
             zona: address.zona || null,
             aldea: address.aldea || null,
             referencia: address.referencia || null,
+            nit: address.nit || "CF",
           },
         },
       })
@@ -209,6 +211,10 @@ export default function CheckoutPage() {
               <label className="text-sm text-gray-600 mb-1 block">Teléfono</label>
               <Input required type="tel" placeholder="5000-0000" value={address.phone} onChange={(e) => setAddress((a) => ({ ...a, phone: e.target.value }))} />
             </div>
+          </div>
+          <div>
+            <label className="text-sm text-gray-600 mb-1 block">NIT <span className="text-gray-400 font-normal">(o CF si no tienes)</span></label>
+            <Input placeholder="Ej: 12345678-9 o CF" maxLength={20} value={address.nit} onChange={(e) => setAddress((a) => ({ ...a, nit: e.target.value }))} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
