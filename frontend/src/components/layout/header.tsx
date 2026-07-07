@@ -4,7 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
-import { ShoppingCart, User, Search } from "lucide-react"
+import { ShoppingCart, Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { useCart } from "@/context/cart-context"
@@ -59,21 +59,13 @@ export function Header() {
 
           {/* Acciones */}
           <div className="flex items-center gap-3 flex-shrink-0">
-            <Link
-              href="/mi-cuenta"
-              className="flex items-center gap-1 text-sm text-gray-600 hover:text-primary"
-            >
-              <User className="w-5 h-5" />
-              <span className="hidden md:block">Mi Cuenta</span>
-            </Link>
-
             <Button
               variant="ghost"
-              size="icon"
-              className="relative"
+              className="relative flex items-center gap-2 px-3"
               onClick={() => setCartOpen(true)}
             >
               <ShoppingCart className="w-5 h-5" />
+              <span className="hidden md:block text-sm font-medium">Mi Carrito</span>
               {count > 0 && (
                 <span className="absolute -top-1 -right-1 bg-primary text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-semibold">
                   {count > 99 ? "99+" : count}

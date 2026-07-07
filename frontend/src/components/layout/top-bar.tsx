@@ -8,7 +8,7 @@ export function TopBar() {
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1">
             <Truck className="w-3 h-3" />
-            Envío gratis desde Q2000
+            Envío gratis desde Q350
           </span>
           <span className="hidden sm:block">|</span>
           <span className="hidden sm:block">Pago Seguro</span>

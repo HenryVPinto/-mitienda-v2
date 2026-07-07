@@ -121,7 +121,7 @@ export function AddToCartButton({ variantId, basePrice, disabled, tiers = [] }: 
         <ShoppingCart className="w-5 h-5" />
         {added
           ? "¡Agregado!"
-          : `Agregar al carrito · ${formatGTQ(total)}`}
+          : `Agregar a Mi Carrito · ${formatGTQ(total)}`}
       </Button>
     </div>
   )
