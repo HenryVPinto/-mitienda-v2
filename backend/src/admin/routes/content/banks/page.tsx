@@ -11,7 +11,7 @@ import {
   Textarea,
   toast,
 } from "@medusajs/ui"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 type BankAccount = {
   id: string
@@ -56,6 +56,9 @@ const BanksPage = () => {
   const [editForm, setEditForm] = useState<BankForm>({ ...emptyForm })
   const [editSaving, setEditSaving] = useState(false)
   const [form, setForm] = useState<BankForm>({ ...emptyForm })
+  const [uploading, setUploading] = useState(false)
+  const createLogoRef = useRef<HTMLInputElement>(null)
+  const editLogoRef = useRef<HTMLInputElement>(null)
 
   const base = window.location.origin
 
@@ -74,6 +77,40 @@ const BanksPage = () => {
   }, [base])
 
   useEffect(() => { fetchBanks() }, [fetchBanks])
+
+  const uploadFile = async (file: File): Promise<string | null> => {
+    const formData = new FormData()
+    formData.append("files", file)
+    const res = await fetch(`${base}/admin/uploads`, {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+    })
+    const data = await res.json()
+    return data.files?.[0]?.url ?? null
+  }
+
+  const handleLogoUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    target: "create" | "edit"
+  ) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const url = await uploadFile(file)
+      if (url) {
+        if (target === "create") setForm((f) => ({ ...f, logo_url: url }))
+        else setEditForm((f) => ({ ...f, logo_url: url }))
+        toast.success("Logo subido correctamente")
+      }
+    } catch {
+      toast.error("Error al subir el logo")
+    } finally {
+      setUploading(false)
+      e.target.value = ""
+    }
+  }
 
   const buildPayload = (f: BankForm) => ({
     bank_name: f.bank_name,
@@ -169,7 +206,17 @@ const BanksPage = () => {
     }
   }
 
-  const FormFields = ({ f, set }: { f: BankForm; set: (f: BankForm) => void }) => (
+  const FormFields = ({
+    f,
+    set,
+    logoRef,
+    uploadTarget,
+  }: {
+    f: BankForm
+    set: (f: BankForm) => void
+    logoRef: React.RefObject<HTMLInputElement>
+    uploadTarget: "create" | "edit"
+  }) => (
     <div className="grid grid-cols-2 gap-4">
       <div className="col-span-2 flex flex-col gap-y-1">
         <Label size="small">Nombre del banco *</Label>
@@ -188,8 +235,21 @@ const BanksPage = () => {
         <Input size="small" value={f.account_holder} onChange={(e) => set({ ...f, account_holder: e.target.value })} placeholder="Nombre del titular" />
       </div>
       <div className="col-span-2 flex flex-col gap-y-1">
-        <Label size="small">URL del logo</Label>
-        <Input size="small" value={f.logo_url} onChange={(e) => set({ ...f, logo_url: e.target.value })} placeholder="https://... (URL de R2)" />
+        <Label size="small">Logo del banco</Label>
+        <div className="flex items-center gap-x-3">
+          {f.logo_url && (
+            <img src={f.logo_url} alt="logo" className="h-10 w-20 object-contain rounded border border-ui-border-base bg-white p-1" />
+          )}
+          <Button size="small" variant="secondary" isLoading={uploading} onClick={() => logoRef.current?.click()} type="button">
+            {f.logo_url ? "Cambiar logo" : "Subir logo"}
+          </Button>
+          <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleLogoUpload(e, uploadTarget)} />
+          {f.logo_url && (
+            <Button size="small" variant="transparent" onClick={() => set({ ...f, logo_url: "" })} type="button">
+              Quitar
+            </Button>
+          )}
+        </div>
       </div>
       <div className="col-span-2 flex flex-col gap-y-1">
         <Label size="small">Instrucciones adicionales</Label>
@@ -219,7 +279,7 @@ const BanksPage = () => {
       {showCreate && (
         <div className="px-6 py-4 bg-ui-bg-subtle">
           <Heading level="h3" className="mb-4">Nueva Cuenta Bancaria</Heading>
-          <FormFields f={form} set={setForm} />
+          <FormFields f={form} set={setForm} logoRef={createLogoRef} uploadTarget="create" />
           <div className="flex justify-end gap-x-2 mt-4">
             <Button size="small" variant="secondary" onClick={() => setShowCreate(false)}>Cancelar</Button>
             <Button size="small" isLoading={submitting} onClick={handleCreate}>Crear</Button>
@@ -230,7 +290,7 @@ const BanksPage = () => {
       {editingId && (
         <div className="px-6 py-4 bg-ui-bg-subtle border-l-4 border-ui-border-interactive">
           <Heading level="h3" className="mb-4">Editar Cuenta Bancaria</Heading>
-          <FormFields f={editForm} set={setEditForm} />
+          <FormFields f={editForm} set={setEditForm} logoRef={editLogoRef} uploadTarget="edit" />
           <div className="flex justify-end gap-x-2 mt-4">
             <Button size="small" variant="secondary" onClick={() => setEditingId(null)}>Cancelar</Button>
             <Button size="small" isLoading={editSaving} onClick={handleSaveEdit}>Guardar</Button>
