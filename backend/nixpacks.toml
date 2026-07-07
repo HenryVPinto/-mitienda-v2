@@ -8,4 +8,4 @@ cmds = ["npm ci --legacy-peer-deps --include=dev"]
 cmds = ["MEDUSA_ADMIN_DISABLE=false NODE_OPTIONS='--max-old-space-size=4096' npm run build && mkdir -p public && cp -r dist/public/admin public/"]
 
 [start]
-cmd = "NODE_OPTIONS='--max-old-space-size=1536' npm run start"
+cmd = "npx medusa db:migrate && NODE_OPTIONS='--max-old-space-size=1536' npm run start"
