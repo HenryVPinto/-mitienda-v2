@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 
 type OptionValue = { id: string; value: string }
 type ProductOption = { id: string; title: string; values: OptionValue[] }
-type VariantOption = { option_id: string; value: string }
+type VariantOption = { id: string; value: string }
 type Variant = { id: string; title: string; options: VariantOption[] }
 
 type Props = { data: { id: string } }
@@ -64,13 +64,16 @@ const ProductBatchVariantsWidget = ({ data }: Props) => {
     })
   }
 
+  // En Medusa v2, variant.options[] son ProductOptionValue con { id, value }
+  // (sin campo option_id directo). Cruzamos usando los IDs de values de cada option.
   const existingKeys = new Set(
-    existingVariants.map((v) =>
-      options.map((o) => {
-        const vo = v.options?.find((op) => op.option_id === o.id)
-        return vo?.value ?? ""
+    existingVariants.map((v) => {
+      const variantValueIds = new Set((v.options ?? []).map((op) => op.id))
+      return options.map((o) => {
+        const match = (o.values ?? []).find((ov) => variantValueIds.has(ov.id))
+        return match?.value ?? ""
       }).join(" / ")
-    )
+    })
   )
 
   const activeSelected = Object.fromEntries(
