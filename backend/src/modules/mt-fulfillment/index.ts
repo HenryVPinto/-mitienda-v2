@@ -11,6 +11,18 @@ type ShippingRule = {
   max_order_amount: number | null
   region_code: string | null
   priority: number
+  weight_threshold_lbs: number | null
+  rate_per_lb: number | null
+  min_item_quantity: number | null
+}
+
+// Factores de conversión a libras
+const TO_LBS: Record<string, number> = {
+  lb: 1,
+  lbs: 1,
+  g: 1 / 453.592,
+  kg: 2.20462,
+  oz: 0.0625,
 }
 
 class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
@@ -23,7 +35,7 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
     this.pool = new Pool({ connectionString: process.env.DATABASE_URL })
   }
 
-  // Cada regla activa aparece como opción seleccionable al configurar envíos en Medusa admin
+  // Cada regla activa del módulo MtShippingRule aparece como opción en Medusa admin
   async getFulfillmentOptions() {
     const { rows } = await this.pool.query<Pick<ShippingRule, "id" | "name">>(
       `SELECT id, name
@@ -34,7 +46,6 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
     return rows.map((r) => ({ id: r.id, name: r.name }))
   }
 
-  // data devuelto aquí se almacena en la ShippingOption de Medusa
   async validateFulfillmentData(
     optionData: Record<string, unknown>,
     data: Record<string, unknown>,
@@ -56,15 +67,18 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
     _data: CalculateShippingOptionPriceDTO["data"],
     context: CalculateShippingOptionPriceDTO["context"]
   ) {
-    const cartTotal = ((context as Record<string, unknown>)?.cart as { total?: number })?.total ?? 0
+    const cartTotal = context?.items?.reduce(
+      (sum, item) => sum + Number(item.unit_price ?? 0) * Number(item.quantity),
+      0
+    ) ?? 0
     const ruleId = (optionData as Record<string, unknown>)?.id as string | undefined
 
     let rule: ShippingRule | undefined
 
     if (ruleId) {
-      // Regla específica vinculada a esta shipping option
       const { rows } = await this.pool.query<ShippingRule>(
-        `SELECT id, name, flat_rate, free_above_amount, min_order_amount, max_order_amount, region_code, priority
+        `SELECT id, name, flat_rate, free_above_amount, min_order_amount, max_order_amount,
+                region_code, priority, weight_threshold_lbs, rate_per_lb, min_item_quantity
          FROM mt_shipping_rule
          WHERE id = $1 AND is_active = true AND deleted_at IS NULL
          LIMIT 1`,
@@ -74,9 +88,9 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
     }
 
     if (!rule) {
-      // Fallback: regla de mayor prioridad que aplique al monto del carrito
       const { rows } = await this.pool.query<ShippingRule>(
-        `SELECT id, name, flat_rate, free_above_amount, min_order_amount, max_order_amount, region_code, priority
+        `SELECT id, name, flat_rate, free_above_amount, min_order_amount, max_order_amount,
+                region_code, priority, weight_threshold_lbs, rate_per_lb, min_item_quantity
          FROM mt_shipping_rule
          WHERE is_active = true AND deleted_at IS NULL
            AND (min_order_amount IS NULL OR min_order_amount <= $1)
@@ -92,6 +106,45 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
       return { calculated_amount: 0, is_calculated_price_tax_inclusive: false }
     }
 
+    const items = context?.items ?? []
+    const totalQty = items.reduce((sum, item) => sum + Number(item.quantity), 0)
+
+    // Lógica de tarifa por peso (mayoreo)
+    if (rule.weight_threshold_lbs != null && rule.rate_per_lb != null) {
+      const isWholesale = rule.min_item_quantity == null || totalQty >= rule.min_item_quantity
+
+      if (isWholesale) {
+        // Obtener unidades de peso por producto para convertir a lbs
+        const productIds = [...new Set(items.map((i) => i.product_id).filter(Boolean))]
+        let weightUnitByProduct: Record<string, string> = {}
+
+        if (productIds.length > 0) {
+          const { rows: productRows } = await this.pool.query<{ id: string; metadata: Record<string, unknown> | null }>(
+            `SELECT id, metadata FROM product WHERE id = ANY($1)`,
+            [productIds]
+          )
+          for (const p of productRows) {
+            weightUnitByProduct[p.id] = (p.metadata?.weight_unit as string) ?? "g"
+          }
+        }
+
+        const totalWeightLbs = items.reduce((sum, item) => {
+          const rawWeight = item.variant?.weight ?? 0
+          const unit = weightUnitByProduct[item.product_id ?? ""] ?? "g"
+          const factor = TO_LBS[unit] ?? TO_LBS["g"]
+          return sum + rawWeight * factor * Number(item.quantity)
+        }, 0)
+
+        if (totalWeightLbs > rule.weight_threshold_lbs) {
+          const extraLbs = totalWeightLbs - rule.weight_threshold_lbs
+          const baseCost = rule.flat_rate ?? 0
+          const weightCost = Math.ceil(extraLbs * rule.rate_per_lb * 100) / 100
+          return { calculated_amount: baseCost + weightCost, is_calculated_price_tax_inclusive: false }
+        }
+      }
+    }
+
+    // Lógica estándar: envío gratis si supera umbral, o tarifa fija
     const isFree = rule.free_above_amount != null && cartTotal >= rule.free_above_amount
     const amount = isFree ? 0 : (rule.flat_rate ?? 0)
 
