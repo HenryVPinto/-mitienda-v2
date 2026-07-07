@@ -144,13 +144,18 @@ const ProductBatchVariantsWidget = ({ data }: Props) => {
                   <Text className="font-semibold text-ui-fg-base text-sm">{option.title}</Text>
                   <div className="flex flex-wrap gap-4">
                     {(option.values ?? []).map((val) => (
-                      <label key={val.id} className="flex items-center gap-2 cursor-pointer select-none">
+                      <div key={val.id} className="flex items-center gap-2 cursor-pointer select-none">
                         <Checkbox
                           checked={selected[option.title]?.includes(val.value) ?? false}
                           onCheckedChange={() => toggle(option.title, val.value)}
                         />
-                        <span className="text-sm text-ui-fg-base">{val.value}</span>
-                      </label>
+                        <span
+                          className="text-sm text-ui-fg-base"
+                          onClick={() => toggle(option.title, val.value)}
+                        >
+                          {val.value}
+                        </span>
+                      </div>
                     ))}
                   </div>
                 </div>
