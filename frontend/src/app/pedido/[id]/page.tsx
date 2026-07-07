@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { CheckCircle2, Package, Mail, MapPin, ShoppingBag } from "lucide-react"
+import { CheckCircle2, Package, Mail, MapPin, ShoppingBag, MessageCircle } from "lucide-react"
 import { buttonVariants } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
@@ -12,7 +12,9 @@ type Props = {
 }
 
 const ORDER_FIELDS =
-  "id,display_id,status,payment_status,fulfillment_status,total,subtotal,shipping_total,email,items.*,items.title,items.thumbnail,items.quantity,items.unit_price,items.total,shipping_address.*"
+  "id,display_id,status,payment_status,fulfillment_status,total,subtotal,shipping_total,email,metadata,items.*,items.title,items.thumbnail,items.quantity,items.unit_price,items.total,shipping_address.*"
+
+const WA_NUMBER = "50258648118"
 
 async function getOrder(id: string): Promise<Order | null> {
   try {
@@ -25,6 +27,68 @@ async function getOrder(id: string): Promise<Order | null> {
   } catch {
     return null
   }
+}
+
+function buildWhatsAppUrl(displayId: string | number, total: number) {
+  const text = encodeURIComponent(
+    `Hola! Realicé el pedido #${displayId} por ${formatGTQ(total)}. Te envío el comprobante de depósito/transferencia.`
+  )
+  return `https://wa.me/${WA_NUMBER}?text=${text}`
+}
+
+function PaymentInstructions({ order }: { order: Order }) {
+  const method = (order.metadata as Record<string, unknown>)?.payment_method as string | undefined
+
+  if (method === "bank_transfer") {
+    return (
+      <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 mb-4">
+        <p className="text-sm font-semibold text-amber-800 mb-2">📋 Instrucciones de pago</p>
+        <p className="text-sm text-amber-700 mb-3">
+          Realiza tu depósito o transferencia y envía el comprobante por WhatsApp para confirmar tu entrega.
+        </p>
+        <a
+          href={buildWhatsAppUrl(order.display_id ?? order.id, order.total)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(
+            buttonVariants({ variant: "default" }),
+            "bg-green-600 hover:bg-green-700 gap-2 w-full sm:w-auto"
+          )}
+        >
+          <MessageCircle className="w-4 h-4" />
+          Enviar comprobante por WhatsApp
+        </a>
+      </div>
+    )
+  }
+
+  if (method === "visalink") {
+    return (
+      <div className="bg-purple-50 border border-purple-200 rounded-xl px-5 py-4 mb-4">
+        <p className="text-sm font-semibold text-purple-800 mb-1">💳 Link de pago en camino</p>
+        <p className="text-sm text-purple-700">
+          En breve recibirás tu link de pago vía WhatsApp (+502 5864-8118) o Messenger.
+          Ten listo tu número de tarjeta de crédito o débito.
+        </p>
+      </div>
+    )
+  }
+
+  // cash_on_delivery o sin metadata
+  return (
+    <div className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-4 mb-4">
+      <p className="text-sm font-semibold text-blue-800 mb-1">🚚 Pago contra entrega</p>
+      <p className="text-sm text-blue-700">
+        Pagarás al recibir tu pedido. Puedes pagar en efectivo.
+      </p>
+    </div>
+  )
+}
+
+function paymentLabel(method: string | undefined) {
+  if (method === "bank_transfer") return "Depósito / Transferencia"
+  if (method === "visalink") return "VisaLink / Link de pago"
+  return "Contra entrega"
 }
 
 export default async function OrderConfirmationPage({ params }: Props) {
@@ -43,6 +107,8 @@ export default async function OrderConfirmationPage({ params }: Props) {
       </div>
     )
   }
+
+  const paymentMethod = (order.metadata as Record<string, unknown>)?.payment_method as string | undefined
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-10">
@@ -64,12 +130,15 @@ export default async function OrderConfirmationPage({ params }: Props) {
           <p className="text-lg font-bold text-primary">#{order.display_id ?? id.slice(-6).toUpperCase()}</p>
         </div>
         <div className="text-right">
-          <p className="text-xs text-gray-500 mb-0.5">Estado de pago</p>
+          <p className="text-xs text-gray-500 mb-0.5">Método de pago</p>
           <span className="text-xs font-semibold bg-yellow-100 text-yellow-700 px-2.5 py-1 rounded-full">
-            Pago contra entrega
+            {paymentLabel(paymentMethod)}
           </span>
         </div>
       </div>
+
+      {/* Instrucciones de pago según método */}
+      <PaymentInstructions order={order} />
 
       {/* Productos */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-4">
@@ -115,7 +184,6 @@ export default async function OrderConfirmationPage({ params }: Props) {
             <span>Total a pagar</span>
             <span className="text-[var(--color-brand-orange)]">{formatGTQ(order.total)}</span>
           </div>
-          <p className="text-xs text-gray-500 text-right">Se cobra al momento de la entrega</p>
         </div>
       </div>
 
@@ -132,9 +200,7 @@ export default async function OrderConfirmationPage({ params }: Props) {
             </p>
             <p>{order.shipping_address.address_1}</p>
             <p>{order.shipping_address.city}, Guatemala</p>
-            {order.shipping_address.phone && (
-              <p>Tel: {order.shipping_address.phone}</p>
-            )}
+            {order.shipping_address.phone && <p>Tel: {order.shipping_address.phone}</p>}
           </div>
         </div>
       )}
@@ -152,16 +218,10 @@ export default async function OrderConfirmationPage({ params }: Props) {
 
       {/* Acciones */}
       <div className="flex flex-col sm:flex-row gap-3">
-        <Link
-          href="/"
-          className={cn(buttonVariants({ variant: "default" }), "flex-1 bg-primary hover:bg-primary/90 h-11 font-semibold")}
-        >
+        <Link href="/" className={cn(buttonVariants({ variant: "default" }), "flex-1 bg-primary hover:bg-primary/90 h-11 font-semibold")}>
           Seguir comprando
         </Link>
-        <Link
-          href="/catalogo"
-          className={cn(buttonVariants({ variant: "outline" }), "flex-1 h-11")}
-        >
+        <Link href="/catalogo" className={cn(buttonVariants({ variant: "outline" }), "flex-1 h-11")}>
           Ver catálogo
         </Link>
       </div>

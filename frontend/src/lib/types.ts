@@ -181,6 +181,7 @@ export type Order = {
   items: LineItem[]
   shipping_address?: Address | null
   email?: string | null
+  metadata?: Record<string, unknown> | null
 }
 
 export type Banner = {
