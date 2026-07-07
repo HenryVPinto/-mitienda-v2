@@ -83,6 +83,20 @@ export default defineConfig({
         ],
       },
     },
+    // ── Fulfillment: MtFulfillmentProvider ───────────────────
+    {
+      key: Modules.FULFILLMENT,
+      resolve: "@medusajs/fulfillment",
+      options: {
+        providers: [
+          {
+            resolve: "./src/modules/mt-fulfillment",
+            id: "mt-fulfillment",
+            options: {},
+          },
+        ],
+      },
+    },
     // ── Módulos custom MiTienda ───────────────────────────────
     {
       resolve: "./src/modules/brand",
