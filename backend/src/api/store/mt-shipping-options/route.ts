@@ -100,8 +100,8 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
           return null
         }
 
-        // ¿Aplica envío gratis?
-        const qualifiesFree = rule.free_above_amount != null && cartTotal >= rule.free_above_amount
+        // ¿Aplica envío gratis? free_above_amount en centavos DB; cartTotal en quetzales
+        const qualifiesFree = rule.free_above_amount != null && cartTotal >= rule.free_above_amount / 100
 
         // ¿Aplica excepción por peso? (peso total supera el umbral)
         const hasWeightException =

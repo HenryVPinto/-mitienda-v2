@@ -109,6 +109,11 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
     const items = context?.items ?? []
     const totalQty = items.reduce((sum, item) => sum + Number(item.quantity), 0)
 
+    // Los precios en esta instancia de Medusa están en quetzales (no centavos).
+    // flat_rate y free_above_amount se guardan en centavos en la DB → dividir entre 100.
+    const flatRateQ = (rule.flat_rate ?? 0) / 100
+    const freeThresholdQ = rule.free_above_amount != null ? rule.free_above_amount / 100 : null
+
     // Lógica de tarifa por peso (mayoreo)
     if (rule.weight_threshold_lbs != null && rule.rate_per_lb != null) {
       const isWholesale = rule.min_item_quantity == null || totalQty >= rule.min_item_quantity
@@ -137,16 +142,16 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
 
         if (totalWeightLbs > rule.weight_threshold_lbs) {
           const extraLbs = totalWeightLbs - rule.weight_threshold_lbs
-          const baseCost = rule.flat_rate ?? 0
+          // rate_per_lb está en quetzales; baseCost también en quetzales tras la conversión
           const weightCost = Math.ceil(extraLbs * rule.rate_per_lb * 100) / 100
-          return { calculated_amount: baseCost + weightCost, is_calculated_price_tax_inclusive: false }
+          return { calculated_amount: flatRateQ + weightCost, is_calculated_price_tax_inclusive: false }
         }
       }
     }
 
     // Lógica estándar: envío gratis si supera umbral, o tarifa fija
-    const isFree = rule.free_above_amount != null && cartTotal >= rule.free_above_amount
-    const amount = isFree ? 0 : (rule.flat_rate ?? 0)
+    const isFree = freeThresholdQ != null && cartTotal >= freeThresholdQ
+    const amount = isFree ? 0 : flatRateQ
 
     return { calculated_amount: amount, is_calculated_price_tax_inclusive: false }
   }

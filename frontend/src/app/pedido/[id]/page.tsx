@@ -171,7 +171,7 @@ export default async function OrderConfirmationPage({ params }: Props) {
         <div className="px-5 py-4 bg-gray-50 border-t border-gray-100 space-y-2">
           <div className="flex justify-between text-sm text-gray-600">
             <span>Subtotal</span>
-            <span>{formatGTQ(order.subtotal ?? order.total)}</span>
+            <span>{formatGTQ(order.items.reduce((s, i) => s + i.unit_price * i.quantity, 0))}</span>
           </div>
           {(order.shipping_total ?? 0) > 0 && (
             <div className="flex justify-between text-sm text-gray-600">
