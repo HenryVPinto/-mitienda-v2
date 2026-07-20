@@ -105,7 +105,7 @@ const ShippingRulesPage = () => {
     if (!confirm("¿Sincronizar reglas de envío con el sistema de checkout de Medusa? Esto creará o actualizará las opciones de envío disponibles para los clientes.")) return
     setSyncing(true)
     try {
-      const res = await fetch(`${base}/admin/mt-shipping/setup`, {
+      const res = await fetch(`${base}/admin/mt-shipping`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
