@@ -64,14 +64,14 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 
     const log: string[] = []
 
-    // ── 1. Stock Location ────────────────────────────────────────────────────
-    let stockLocations = await stockLocationService.listStockLocations({ name: "Guatemala" })
+    // ── 1. Stock Location — usar el primero existente o crear uno ────────────
+    let stockLocations = await stockLocationService.listStockLocations({})
     let stockLocation = stockLocations[0]
     if (!stockLocation) {
       stockLocation = await stockLocationService.createStockLocations({ name: "Guatemala" })
       log.push("Creado stock location: Guatemala")
     } else {
-      log.push(`Stock location existente: ${stockLocation.id}`)
+      log.push(`Usando stock location existente: ${stockLocation.name} (${stockLocation.id})`)
     }
 
     // ── 2. Sales Channel ─────────────────────────────────────────────────────
