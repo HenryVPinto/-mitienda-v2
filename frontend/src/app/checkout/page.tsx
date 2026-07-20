@@ -78,6 +78,8 @@ export default function CheckoutPage() {
     if (!cartId) return
     setLoading(true)
     setError("")
+
+    // Paso A: guardar dirección
     try {
       await storePost(`/store/carts/${cartId}`, {
         email: address.email,
@@ -97,14 +99,27 @@ export default function CheckoutPage() {
           },
         },
       })
-      const data = await storeGet<{ shipping_options: ShippingOption[] }>(
-        "/store/shipping-options",
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al guardar la dirección. Intenta de nuevo.")
+      setLoading(false)
+      return
+    }
+
+    // Paso B: obtener opciones de envío
+    try {
+      const data = await storeGet<{ shipping_options: ShippingOption[]; needs_setup?: boolean }>(
+        "/store/mt-shipping-options",
         { cart_id: cartId }
       )
+      if (data.needs_setup) {
+        setError("No hay opciones de envío configuradas. Ve al admin → Settings → Shipping y crea una opción con el proveedor 'mt-fulfillment'.")
+        setLoading(false)
+        return
+      }
       setShippingOptions(data.shipping_options ?? [])
       setStep(2)
-    } catch {
-      setError("Error al guardar la dirección. Intenta de nuevo.")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al cargar las opciones de envío.")
     } finally {
       setLoading(false)
     }
@@ -128,8 +143,8 @@ export default function CheckoutPage() {
         })
       }
       setStep(3)
-    } catch {
-      setError("Error al seleccionar envío.")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al seleccionar el método de envío.")
     } finally {
       setLoading(false)
     }

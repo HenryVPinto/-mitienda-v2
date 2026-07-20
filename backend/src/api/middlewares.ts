@@ -30,5 +30,9 @@ export default defineMiddlewares({
       matcher: "/admin/cms*",
       middlewares: [authenticate("user", ["session", "bearer", "api-key"])],
     },
+    {
+      matcher: "/admin/mt-shipping*",
+      middlewares: [authenticate("user", ["session", "bearer", "api-key"])],
+    },
   ],
 })
