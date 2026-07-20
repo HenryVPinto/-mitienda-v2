@@ -13,12 +13,18 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   }
 
   try {
-    // Obtener el total del carrito (subtotal en centavos / unidad de moneda)
-    const { rows: cartRows } = await pool.query(
-      `SELECT subtotal FROM cart WHERE id = $1 AND deleted_at IS NULL LIMIT 1`,
+    // Calcular total del carrito sumando los line items (subtotal no es columna en Medusa v2)
+    const { rows: itemRows } = await pool.query(
+      `SELECT COALESCE(unit_price, 0) AS unit_price, COALESCE(quantity, 0) AS quantity
+       FROM cart_line_item
+       WHERE cart_id = $1 AND deleted_at IS NULL`,
       [cart_id]
     )
-    const cartTotal = Number(cartRows[0]?.subtotal ?? 0)
+    const cartTotal = itemRows.reduce(
+      (sum: number, r: { unit_price: string | number; quantity: string | number }) =>
+        sum + (Number(r.unit_price) || 0) * (Number(r.quantity) || 0),
+      0
+    )
 
     // Obtener las shipping_options de Medusa creadas con nuestro provider
     // data->>'id' contiene el ID de la regla (proveniente de getFulfillmentOptions)

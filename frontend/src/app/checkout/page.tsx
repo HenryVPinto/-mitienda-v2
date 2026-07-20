@@ -11,7 +11,7 @@ import { storeGet, storePost } from "@/lib/medusa"
 import { formatGTQ } from "@/lib/format"
 import type { ShippingOption } from "@/lib/types"
 
-type Step = 1 | 2 | 3
+type Step = 1 | 2
 type PaymentMethod = "cash_on_delivery" | "bank_transfer" | "visalink"
 
 type AddressForm = {
@@ -55,8 +55,7 @@ export default function CheckoutPage() {
 
   const [step, setStep] = useState<Step>(1)
   const [address, setAddress] = useState<AddressForm>(EMPTY_ADDRESS)
-  const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([])
-  const [selectedShipping, setSelectedShipping] = useState<string | null>(null)
+  const [appliedShipping, setAppliedShipping] = useState<ShippingOption | null>(null)
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod | null>(null)
   const [banks, setBanks] = useState<BankAccount[]>([])
   const [loadingBanks, setLoadingBanks] = useState(false)
@@ -106,40 +105,38 @@ export default function CheckoutPage() {
       return
     }
 
-    // Paso B: obtener opciones de envío (custom endpoint con fallback al nativo)
+    // Paso B: obtener la mejor opción de envío y aplicarla automáticamente
     try {
+      // Intentar el endpoint custom; si falla, caer al nativo
       let options: ShippingOption[] = []
       try {
-        const data = await storeGet<{ shipping_options: ShippingOption[]; needs_setup?: boolean }>(
+        const data = await storeGet<{ shipping_options: ShippingOption[] }>(
           "/store/mt-shipping-options",
           { cart_id: cartId }
         )
         options = data.shipping_options ?? []
       } catch {
-        // Fallback al endpoint nativo de Medusa si el custom falla
         const data = await storeGet<{ shipping_options: ShippingOption[] }>(
           "/store/shipping-options",
           { cart_id: cartId }
         )
         options = data.shipping_options ?? []
       }
-      setShippingOptions(options)
-      setStep(2)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Error desconocido"
-      setError(`Error al cargar opciones de envío: ${msg}`)
-    } finally {
-      setLoading(false)
-    }
-  }
 
-  async function handleShippingSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!cartId || !selectedShipping) return
-    setLoading(true)
-    setError("")
-    try {
-      await storePost(`/store/carts/${cartId}/shipping-methods`, { option_id: selectedShipping })
+      if (options.length === 0) {
+        setError("No hay opciones de envío disponibles. Contacta al administrador.")
+        setLoading(false)
+        return
+      }
+
+      // Auto-seleccionar la primera opción (mayor prioridad según las reglas)
+      const best = options[0]
+
+      // Aplicar el método de envío al carrito
+      await storePost(`/store/carts/${cartId}/shipping-methods`, { option_id: best.id })
+      setAppliedShipping(best)
+
+      // Crear colección de pago
       const pcData = await storePost<{ payment_collection: { id: string } }>(
         "/store/payment-collections",
         { cart_id: cartId }
@@ -150,9 +147,11 @@ export default function CheckoutPage() {
           provider_id: "pp_system_default",
         })
       }
-      setStep(3)
+
+      setStep(2)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al seleccionar el método de envío.")
+      const msg = err instanceof Error ? err.message : "Error desconocido"
+      setError(`Error al procesar envío: ${msg}`)
     } finally {
       setLoading(false)
     }
@@ -163,7 +162,6 @@ export default function CheckoutPage() {
     setLoading(true)
     setError("")
     try {
-      // Guardar método de pago en metadata del carrito
       await storePost(`/store/carts/${cartId}`, {
         metadata: { payment_method: selectedPayment },
       })
@@ -184,8 +182,7 @@ export default function CheckoutPage() {
 
   const steps = [
     { n: 1, label: "Dirección" },
-    { n: 2, label: "Envío" },
-    { n: 3, label: "Pago" },
+    { n: 2, label: "Pago" },
   ]
 
   return (
@@ -268,50 +265,16 @@ export default function CheckoutPage() {
             <Input placeholder="Ej: Frente al parque, casa azul" maxLength={120} value={address.referencia} onChange={(e) => setAddress((a) => ({ ...a, referencia: e.target.value }))} />
           </div>
           <Button type="submit" disabled={loading} className="w-full bg-primary hover:bg-primary/90 h-11">
-            {loading ? "Guardando..." : "Continuar al envío →"}
+            {loading ? "Calculando envío..." : "Continuar al pago →"}
           </Button>
         </form>
       )}
 
-      {/* Paso 2: Envío */}
+      {/* Paso 2: Pago */}
       {step === 2 && (
-        <form onSubmit={handleShippingSubmit} className="space-y-4">
-          <h2 className="text-lg font-semibold text-gray-700">Método de envío</h2>
-          {shippingOptions.length === 0 ? (
-            <p className="text-sm text-gray-500">No hay opciones de envío disponibles.</p>
-          ) : (
-            <div className="space-y-2">
-              {shippingOptions.map((opt) => (
-                <label
-                  key={opt.id}
-                  className={`flex items-center gap-3 p-4 border rounded-xl cursor-pointer transition-colors ${selectedShipping === opt.id ? "border-primary bg-primary/5" : "border-gray-200 hover:border-gray-300"}`}
-                >
-                  <input type="radio" name="shipping" value={opt.id} checked={selectedShipping === opt.id} onChange={() => setSelectedShipping(opt.id)} className="accent-primary" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-800">{opt.name}</p>
-                  </div>
-                  <p className="text-sm font-bold text-[var(--color-brand-orange)]">
-                    {opt.amount === 0 ? "Gratis" : formatGTQ(opt.amount)}
-                  </p>
-                </label>
-              ))}
-            </div>
-          )}
-          <div className="flex gap-3">
-            <Button type="button" variant="outline" onClick={() => setStep(1)} className="flex-1">← Volver</Button>
-            <Button type="submit" disabled={loading || !selectedShipping} className="flex-1 bg-primary hover:bg-primary/90">
-              {loading ? "Procesando..." : "Continuar al pago →"}
-            </Button>
-          </div>
-        </form>
-      )}
-
-      {/* Paso 3: Pago */}
-      {step === 3 && (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-gray-700">Método de pago</h2>
 
-          {/* Selector de método */}
           <div className="space-y-2">
             {PAYMENT_OPTIONS.map((opt) => (
               <button
@@ -336,7 +299,6 @@ export default function CheckoutPage() {
             ))}
           </div>
 
-          {/* Detalle según método seleccionado */}
           {selectedPayment === "cash_on_delivery" && (
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-700">
               Pagarás en efectivo cuando el repartidor entregue tu pedido.
@@ -384,7 +346,7 @@ export default function CheckoutPage() {
 
           <Separator />
 
-          {/* Resumen */}
+          {/* Resumen del pedido */}
           <div className="space-y-2 text-sm">
             <h3 className="font-semibold text-gray-700">Resumen del pedido</h3>
             {items.map((item) => (
@@ -393,15 +355,24 @@ export default function CheckoutPage() {
                 <span>{formatGTQ(item.unit_price * item.quantity)}</span>
               </div>
             ))}
+            {appliedShipping && (
+              <div className="flex justify-between text-gray-600">
+                <span className="flex items-center gap-1">
+                  <Truck className="w-3.5 h-3.5" />
+                  Envío
+                </span>
+                <span>{appliedShipping.amount === 0 ? "Gratis" : formatGTQ(appliedShipping.amount)}</span>
+              </div>
+            )}
             <Separator />
             <div className="flex justify-between font-bold">
               <span>Total</span>
-              <span className="text-[var(--color-brand-orange)]">{formatGTQ(total)}</span>
+              <span className="text-[var(--color-brand-orange)]">{formatGTQ(total + (appliedShipping?.amount ?? 0))}</span>
             </div>
           </div>
 
           <div className="flex gap-3">
-            <Button type="button" variant="outline" onClick={() => setStep(2)} className="flex-1">← Volver</Button>
+            <Button type="button" variant="outline" onClick={() => setStep(1)} className="flex-1">← Volver</Button>
             <Button
               onClick={handlePlaceOrder}
               disabled={loading || !selectedPayment}
