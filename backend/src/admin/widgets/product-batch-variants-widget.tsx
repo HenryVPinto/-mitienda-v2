@@ -64,8 +64,6 @@ const ProductBatchVariantsWidget = ({ data }: Props) => {
     })
   }
 
-  // En Medusa v2, variant.options[] son ProductOptionValue con { id, value }
-  // (sin campo option_id directo). Cruzamos usando los IDs de values de cada option.
   const existingKeys = new Set(
     existingVariants.map((v) => {
       const variantValueIds = new Set((v.options ?? []).map((op) => op.id))
@@ -85,18 +83,24 @@ const ProductBatchVariantsWidget = ({ data }: Props) => {
   const newCombinations = permutations.filter(
     (perm) => !existingKeys.has(Object.values(perm).join(" / "))
   )
+  const allCombinations = permutations
 
   const handleGenerate = async () => {
-    if (newCombinations.length === 0) {
-      toast.warning("Todas las combinaciones seleccionadas ya existen")
+    if (allCombinations.length === 0) {
+      toast.warning("Selecciona al menos una talla para generar")
       return
     }
     setGenerating(true)
     let created = 0
+    let skipped = 0
     let failed = 0
     try {
-      for (const optionCombo of newCombinations) {
+      for (const optionCombo of allCombinations) {
         const title = Object.values(optionCombo).join(" / ")
+        if (existingKeys.has(title)) {
+          skipped++
+          continue
+        }
         const res = await fetch(`${base}/admin/products/${productId}/variants`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -112,6 +116,7 @@ const ProductBatchVariantsWidget = ({ data }: Props) => {
         }
       }
       if (created > 0) toast.success(`${created} variante(s) creada(s)`)
+      if (skipped > 0) toast.warning(`${skipped} ya existían y se omitieron`)
       if (failed > 0) toast.error(`${failed} variante(s) fallaron`)
       if (created > 0) await fetchProduct()
       const reset: Record<string, string[]> = {}
@@ -169,16 +174,16 @@ const ProductBatchVariantsWidget = ({ data }: Props) => {
                   </div>
                 </div>
               ))}
-              {permutations.length > 0 && (
+              {allCombinations.length > 0 && (
                 <Text className="text-sm text-ui-fg-muted">
                   {newCombinations.length > 0
-                    ? `Se crearán ${newCombinations.length} variante(s) nueva(s) de ${permutations.length} combinaciones`
-                    : "Todas las combinaciones seleccionadas ya existen"}
+                    ? `Se crearán ${newCombinations.length} variante(s) nueva(s)${allCombinations.length > newCombinations.length ? ` (${allCombinations.length - newCombinations.length} ya existen)` : ""}`
+                    : "Todas las combinaciones seleccionadas ya existen — selecciona tallas nuevas para agregar"}
                 </Text>
               )}
               <Button
                 onClick={handleGenerate}
-                disabled={generating || newCombinations.length === 0}
+                disabled={generating || allCombinations.length === 0}
                 isLoading={generating}
                 size="small"
               >

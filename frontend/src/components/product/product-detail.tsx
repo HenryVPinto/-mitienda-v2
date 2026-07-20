@@ -309,15 +309,15 @@ export function ProductDetail({ product, pricingTiers }: Props) {
                   const isSelected = selectedValues[option.id] === val.value
                   const available = isValueAvailable(option.id, val.value)
 
-                  // Muestra círculo de color si el variant tiene color_hex en metadata,
-                  // sin importar el nombre de la opción. Fallback a match por value si
-                  // Medusa no devuelve option_id en variants.options.
-                  const matchingVariant =
-                    product.variants?.find((v) =>
-                      v.options?.some((o) => o.option_id === option.id && o.value === val.value)
-                    ) ?? product.variants?.find((v) =>
-                      v.options?.some((o) => o.value === val.value)
-                    )
+                  // Solo usa color_hex para opciones de tipo "Color" — evita que tallas se rendericen como swatches
+                  const isColorOption = option.title.toLowerCase().includes("color")
+                  const matchingVariant = isColorOption
+                    ? (product.variants?.find((v) =>
+                        v.options?.some((o) => o.option_id === option.id && o.value === val.value)
+                      ) ?? product.variants?.find((v) =>
+                        v.options?.some((o) => o.value === val.value)
+                      ))
+                    : null
                   const colorHex =
                     (matchingVariant?.metadata as { color_hex?: string } | null)?.color_hex ?? null
 
