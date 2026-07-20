@@ -99,7 +99,10 @@ export default function CheckoutPage() {
         },
       })
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Error desconocido"
+      const raw = err instanceof Error ? err.message : "Error desconocido"
+      const msg = raw === "Failed to fetch"
+        ? "No se pudo conectar con el servidor. Verifica tu conexión e intenta de nuevo."
+        : raw
       setError(`Error al guardar dirección: ${msg}`)
       setLoading(false)
       return
@@ -210,59 +213,59 @@ export default function CheckoutPage() {
 
       {/* Paso 1: Dirección */}
       {step === 1 && (
-        <form onSubmit={handleAddressSubmit} className="space-y-4">
+        <form onSubmit={handleAddressSubmit} className="space-y-4" autoComplete="off">
           <h2 className="text-lg font-semibold text-gray-700">Dirección de envío</h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-sm text-gray-600 mb-1 block">Nombre</label>
-              <Input required value={address.first_name} onChange={(e) => setAddress((a) => ({ ...a, first_name: e.target.value }))} />
+              <Input required autoComplete="given-name" value={address.first_name} onChange={(e) => setAddress((a) => ({ ...a, first_name: e.target.value }))} />
             </div>
             <div>
               <label className="text-sm text-gray-600 mb-1 block">Apellido</label>
-              <Input required value={address.last_name} onChange={(e) => setAddress((a) => ({ ...a, last_name: e.target.value }))} />
+              <Input required autoComplete="family-name" value={address.last_name} onChange={(e) => setAddress((a) => ({ ...a, last_name: e.target.value }))} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-sm text-gray-600 mb-1 block">Correo electrónico</label>
-              <Input required type="email" value={address.email} onChange={(e) => setAddress((a) => ({ ...a, email: e.target.value }))} />
+              <Input required type="email" autoComplete="email" value={address.email} onChange={(e) => setAddress((a) => ({ ...a, email: e.target.value }))} />
             </div>
             <div>
               <label className="text-sm text-gray-600 mb-1 block">Teléfono</label>
-              <Input required type="tel" placeholder="5000-0000" value={address.phone} onChange={(e) => setAddress((a) => ({ ...a, phone: e.target.value }))} />
+              <Input required type="tel" autoComplete="tel" placeholder="5000-0000" value={address.phone} onChange={(e) => setAddress((a) => ({ ...a, phone: e.target.value }))} />
             </div>
           </div>
           <div>
             <label className="text-sm text-gray-600 mb-1 block">NIT <span className="text-gray-400 font-normal">(o CF si no tienes)</span></label>
-            <Input placeholder="Ej: 12345678-9 o CF" maxLength={20} value={address.nit} onChange={(e) => setAddress((a) => ({ ...a, nit: e.target.value }))} />
+            <Input autoComplete="off" placeholder="Ej: 12345678-9 o CF" maxLength={20} value={address.nit} onChange={(e) => setAddress((a) => ({ ...a, nit: e.target.value }))} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-sm text-gray-600 mb-1 block">Departamento</label>
-              <Input required placeholder="Ej: Guatemala" value={address.departamento} onChange={(e) => setAddress((a) => ({ ...a, departamento: e.target.value }))} />
+              <Input required autoComplete="address-level1" placeholder="Ej: Guatemala" value={address.departamento} onChange={(e) => setAddress((a) => ({ ...a, departamento: e.target.value }))} />
             </div>
             <div>
               <label className="text-sm text-gray-600 mb-1 block">Municipio</label>
-              <Input required placeholder="Ej: Guatemala" value={address.municipio} onChange={(e) => setAddress((a) => ({ ...a, municipio: e.target.value }))} />
+              <Input required autoComplete="address-level2" placeholder="Ej: Guatemala" value={address.municipio} onChange={(e) => setAddress((a) => ({ ...a, municipio: e.target.value }))} />
             </div>
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div className="col-span-2">
               <label className="text-sm text-gray-600 mb-1 block">Dirección <span className="text-gray-400 font-normal">(calle, avenida, número)</span></label>
-              <Input required placeholder="Ej: 5a Av. 3-12" maxLength={60} value={address.direccion} onChange={(e) => setAddress((a) => ({ ...a, direccion: e.target.value }))} />
+              <Input required autoComplete="address-line1" placeholder="Ej: 5a Av. 3-12" maxLength={60} value={address.direccion} onChange={(e) => setAddress((a) => ({ ...a, direccion: e.target.value }))} />
             </div>
             <div>
               <label className="text-sm text-gray-600 mb-1 block">Zona</label>
-              <Input placeholder="Ej: 10" maxLength={10} value={address.zona} onChange={(e) => setAddress((a) => ({ ...a, zona: e.target.value }))} />
+              <Input autoComplete="off" placeholder="Ej: 10" maxLength={10} value={address.zona} onChange={(e) => setAddress((a) => ({ ...a, zona: e.target.value }))} />
             </div>
           </div>
           <div>
             <label className="text-sm text-gray-600 mb-1 block">Aldea u otro <span className="text-gray-400 font-normal">(colonia, barrio, caserío…)</span></label>
-            <Input placeholder="Ej: Colonia Miraflores" maxLength={60} value={address.aldea} onChange={(e) => setAddress((a) => ({ ...a, aldea: e.target.value }))} />
+            <Input autoComplete="address-line2" placeholder="Ej: Colonia Miraflores" maxLength={60} value={address.aldea} onChange={(e) => setAddress((a) => ({ ...a, aldea: e.target.value }))} />
           </div>
           <div>
             <label className="text-sm text-gray-600 mb-1 block">Referencia <span className="text-gray-400 font-normal">(punto de referencia)</span></label>
-            <Input placeholder="Ej: Frente al parque, casa azul" maxLength={120} value={address.referencia} onChange={(e) => setAddress((a) => ({ ...a, referencia: e.target.value }))} />
+            <Input autoComplete="off" placeholder="Ej: Frente al parque, casa azul" maxLength={120} value={address.referencia} onChange={(e) => setAddress((a) => ({ ...a, referencia: e.target.value }))} />
           </div>
           <Button type="submit" disabled={loading} className="w-full bg-primary hover:bg-primary/90 h-11">
             {loading ? "Calculando envío..." : "Continuar al pago →"}
