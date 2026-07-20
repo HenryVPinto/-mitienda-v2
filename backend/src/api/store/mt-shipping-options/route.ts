@@ -62,7 +62,8 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
         if (!medusaId) return null
 
         const isFree = rule.free_above_amount != null && cartTotal >= rule.free_above_amount
-        const amount = isFree ? 0 : (rule.flat_rate ?? 0)
+        // flat_rate está en centavos en la DB; dividir entre 100 para devolver quetzales
+        const amount = isFree ? 0 : ((rule.flat_rate ?? 0) / 100)
 
         return { id: medusaId, rule_id: rule.id, name: rule.name, amount, provider_id: "mt-fulfillment" }
       })
