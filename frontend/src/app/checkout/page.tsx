@@ -100,26 +100,34 @@ export default function CheckoutPage() {
         },
       })
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al guardar la dirección. Intenta de nuevo.")
+      const msg = err instanceof Error ? err.message : "Error desconocido"
+      setError(`Error al guardar dirección: ${msg}`)
       setLoading(false)
       return
     }
 
-    // Paso B: obtener opciones de envío
+    // Paso B: obtener opciones de envío (custom endpoint con fallback al nativo)
     try {
-      const data = await storeGet<{ shipping_options: ShippingOption[]; needs_setup?: boolean }>(
-        "/store/mt-shipping-options",
-        { cart_id: cartId }
-      )
-      if (data.needs_setup) {
-        setError("No hay opciones de envío configuradas. Ve al admin → Settings → Shipping y crea una opción con el proveedor 'mt-fulfillment'.")
-        setLoading(false)
-        return
+      let options: ShippingOption[] = []
+      try {
+        const data = await storeGet<{ shipping_options: ShippingOption[]; needs_setup?: boolean }>(
+          "/store/mt-shipping-options",
+          { cart_id: cartId }
+        )
+        options = data.shipping_options ?? []
+      } catch {
+        // Fallback al endpoint nativo de Medusa si el custom falla
+        const data = await storeGet<{ shipping_options: ShippingOption[] }>(
+          "/store/shipping-options",
+          { cart_id: cartId }
+        )
+        options = data.shipping_options ?? []
       }
-      setShippingOptions(data.shipping_options ?? [])
+      setShippingOptions(options)
       setStep(2)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al cargar las opciones de envío.")
+      const msg = err instanceof Error ? err.message : "Error desconocido"
+      setError(`Error al cargar opciones de envío: ${msg}`)
     } finally {
       setLoading(false)
     }
