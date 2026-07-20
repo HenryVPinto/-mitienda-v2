@@ -93,47 +93,49 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       log.push("Link Sales Channel ↔ Stock Location ya existía")
     }
 
-    // ── 4. Fulfillment Set ───────────────────────────────────────────────────
-    let fulfillmentSets = await fulfillmentService.listFulfillmentSets({ name: "MiTienda Envíos" })
-    let fulfillmentSet = fulfillmentSets[0]
-    if (!fulfillmentSet) {
-      fulfillmentSet = await fulfillmentService.createFulfillmentSets({
+    // ── 4. Fulfillment Set — preferir el que ya está vinculado al stock location ──
+    const { rows: linkedFsRows } = await pool.query(
+      `SELECT fs.id, fs.name FROM fulfillment_set fs
+       JOIN location_fulfillment_set lfs ON lfs.fulfillment_set_id = fs.id
+       WHERE lfs.stock_location_id = $1 AND fs.type = 'shipping' AND fs.deleted_at IS NULL
+       LIMIT 1`,
+      [stockLocation.id]
+    )
+    let fulfillmentSet: { id: string; name: string }
+    if (linkedFsRows[0]) {
+      fulfillmentSet = linkedFsRows[0]
+      log.push(`Fulfillment set existente vinculado: ${fulfillmentSet.name} (${fulfillmentSet.id})`)
+    } else {
+      // No existe ninguno vinculado — crear uno nuevo y vincularlo
+      const created = await fulfillmentService.createFulfillmentSets({
         name: "MiTienda Envíos",
         type: "shipping",
       })
-      log.push("Creado fulfillment set: MiTienda Envíos")
-    } else {
-      log.push(`Fulfillment set existente: ${fulfillmentSet.id}`)
-    }
-
-    // ── 5. Link StockLocation ↔ FulfillmentSet ───────────────────────────────
-    try {
+      fulfillmentSet = created
       await remoteLink.create([
         {
           [Modules.STOCK_LOCATION]: { stock_location_id: stockLocation.id },
           [Modules.FULFILLMENT]: { fulfillment_set_id: fulfillmentSet.id },
         },
       ])
-      log.push("Vinculado Stock Location → Fulfillment Set")
-    } catch {
-      log.push("Link Stock Location ↔ Fulfillment Set ya existía")
+      log.push(`Creado y vinculado fulfillment set: ${fulfillmentSet.name}`)
     }
 
-    // ── 6. Service Zone ──────────────────────────────────────────────────────
-    // FilterableServiceZoneProps usa "fulfillment_set" (relación), no "fulfillment_set_id"
-    let serviceZones = await fulfillmentService.listServiceZones({
+    // ── 5. Service Zone — usar la primera zona de tipo envío existente ────────
+    const serviceZonesInFs = await fulfillmentService.listServiceZones({
       fulfillment_set: { id: fulfillmentSet.id },
     })
-    let serviceZone = serviceZones[0]
-    if (!serviceZone) {
+    let serviceZone: { id: string }
+    if (serviceZonesInFs[0]) {
+      serviceZone = serviceZonesInFs[0]
+      log.push(`Service zone existente: ${(serviceZone as { id: string; name?: string }).name ?? serviceZone.id}`)
+    } else {
       serviceZone = await fulfillmentService.createServiceZones({
         name: "Guatemala",
         fulfillment_set_id: fulfillmentSet.id,
         geo_zones: [{ type: "country", country_code: "gt" }],
       })
       log.push("Creado service zone: Guatemala (GT)")
-    } else {
-      log.push(`Service zone existente: ${serviceZone.id}`)
     }
 
     // ── 7. Shipping Profile ──────────────────────────────────────────────────
