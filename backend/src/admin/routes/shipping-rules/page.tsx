@@ -77,6 +77,7 @@ const ShippingRulesPage = () => {
   const [editForm, setEditForm] = useState<EditForm>({ ...emptyCreate })
   const [editSaving, setEditSaving] = useState(false)
   const [form, setForm] = useState<CreateForm>({ ...emptyCreate })
+  const [syncing, setSyncing] = useState(false)
 
   const base = window.location.origin
 
@@ -99,6 +100,28 @@ const ShippingRulesPage = () => {
   useEffect(() => {
     fetchRules()
   }, [fetchRules])
+
+  const handleSync = async () => {
+    if (!confirm("¿Sincronizar reglas de envío con el sistema de checkout de Medusa? Esto creará o actualizará las opciones de envío disponibles para los clientes.")) return
+    setSyncing(true)
+    try {
+      const res = await fetch(`${base}/admin/mt-shipping/setup`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json() as { success: boolean; message?: string; log?: string[] }
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Error en el setup")
+      }
+      toast.success(`Sincronizado correctamente — ${data.log?.slice(-1)[0] ?? ""}`)
+    } catch (e: any) {
+      toast.error(e.message || "Error al sincronizar con checkout")
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const buildPayload = (f: CreateForm | EditForm) => {
     const payload: Record<string, unknown> = {
@@ -244,13 +267,23 @@ const ShippingRulesPage = () => {
             {count} {count === 1 ? "regla registrada" : "reglas registradas"}
           </p>
         </div>
-        <Button
-          size="small"
-          variant={showCreate ? "secondary" : "primary"}
-          onClick={() => setShowCreate(!showCreate)}
-        >
-          {showCreate ? "Cancelar" : "+ Nueva Regla"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="small"
+            variant="secondary"
+            onClick={handleSync}
+            isLoading={syncing}
+          >
+            Sincronizar con Checkout
+          </Button>
+          <Button
+            size="small"
+            variant={showCreate ? "secondary" : "primary"}
+            onClick={() => setShowCreate(!showCreate)}
+          >
+            {showCreate ? "Cancelar" : "+ Nueva Regla"}
+          </Button>
+        </div>
       </div>
 
       {showCreate && (
