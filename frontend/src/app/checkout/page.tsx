@@ -10,6 +10,7 @@ import { useCart } from "@/context/cart-context"
 import { storeGet, storePost } from "@/lib/medusa"
 import { formatGTQ } from "@/lib/format"
 import type { ShippingOption } from "@/lib/types"
+import { getEffectiveUnitPrice, getEffectiveCartTotal } from "@/lib/pricing"
 
 type Step = 1 | 2
 type PaymentMethod = "cash_on_delivery" | "bank_transfer" | "visalink"
@@ -50,7 +51,8 @@ const PAYMENT_OPTIONS: { id: PaymentMethod; icon: React.ReactNode; title: string
 ]
 
 export default function CheckoutPage() {
-  const { cartId, items, total, clearCart } = useCart()
+  const { cartId, items, clearCart } = useCart()
+  const effectiveTotal = getEffectiveCartTotal(items)
   const router = useRouter()
 
   const [step, setStep] = useState<Step>(1)
@@ -355,7 +357,7 @@ export default function CheckoutPage() {
             {items.map((item) => (
               <div key={item.id} className="flex justify-between text-gray-600">
                 <span className="truncate flex-1 mr-2">{item.title} × {item.quantity}</span>
-                <span>{formatGTQ(item.unit_price * item.quantity)}</span>
+                <span>{formatGTQ(getEffectiveUnitPrice(item) * item.quantity)}</span>
               </div>
             ))}
             {appliedShipping && (
@@ -370,7 +372,7 @@ export default function CheckoutPage() {
             <Separator />
             <div className="flex justify-between font-bold">
               <span>Total</span>
-              <span className="text-[var(--color-brand-orange)]">{formatGTQ(total + (appliedShipping?.amount ?? 0))}</span>
+              <span className="text-[var(--color-brand-orange)]">{formatGTQ(effectiveTotal + (appliedShipping?.amount ?? 0))}</span>
             </div>
           </div>
 

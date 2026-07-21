@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator"
 import { useCart } from "@/context/cart-context"
 import { formatGTQ } from "@/lib/format"
 import { cn } from "@/lib/utils"
+import { getEffectiveUnitPrice, getEffectiveCartTotal } from "@/lib/pricing"
 
 type Props = {
   open: boolean
@@ -16,7 +17,8 @@ type Props = {
 }
 
 export function CartDrawer({ open, onClose }: Props) {
-  const { items, total, count, updateItem, removeItem, loading } = useCart()
+  const { items, count, updateItem, removeItem, loading } = useCart()
+  const effectiveTotal = getEffectiveCartTotal(items)
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
@@ -63,7 +65,7 @@ export function CartDrawer({ open, onClose }: Props) {
                       <p className="text-xs text-gray-500">{item.variant.title}</p>
                     )}
                     <p className="text-sm font-bold text-[var(--color-brand-orange)] mt-1">
-                      {formatGTQ(item.unit_price)}
+                      {formatGTQ(getEffectiveUnitPrice(item))}
                     </p>
                     <div className="flex items-center gap-2 mt-2">
                       <button
@@ -98,7 +100,7 @@ export function CartDrawer({ open, onClose }: Props) {
               <Separator />
               <div className="flex justify-between font-bold text-base">
                 <span>Total</span>
-                <span className="text-[var(--color-brand-orange)]">{formatGTQ(total)}</span>
+                <span className="text-[var(--color-brand-orange)]">{formatGTQ(effectiveTotal)}</span>
               </div>
               <Link
                 href="/carrito"
