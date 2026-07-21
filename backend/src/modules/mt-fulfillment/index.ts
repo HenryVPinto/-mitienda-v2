@@ -51,11 +51,29 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
     _data: CalculateShippingOptionPriceDTO["data"],
     context: CalculateShippingOptionPriceDTO["context"]
   ) {
-    const cartTotalQ =
-      context?.items?.reduce(
+    // Medusa no garantiza unit_price en context.items — leer el total directamente de la DB
+    const items = context?.items ?? []
+    const cartId =
+      (context as unknown as Record<string, unknown>)?.cart_id as string | undefined ??
+      (items[0] as unknown as Record<string, unknown>)?.cart_id as string | undefined
+
+    let cartTotalQ = 0
+
+    if (cartId) {
+      const { rows: cartRows } = await this.pool.query<{ total: string }>(
+        `SELECT COALESCE(SUM(COALESCE(unit_price, 0) * COALESCE(quantity, 0)), 0) AS total
+         FROM cart_line_item
+         WHERE cart_id = $1 AND deleted_at IS NULL`,
+        [cartId]
+      )
+      cartTotalQ = Number(cartRows[0]?.total ?? 0)
+    } else {
+      // Fallback si Medusa sí entrega los precios en el contexto
+      cartTotalQ = items.reduce(
         (sum, item) => sum + Number(item.unit_price ?? 0) * Number(item.quantity),
         0
-      ) ?? 0
+      )
+    }
 
     const ruleId = (optionData as Record<string, unknown>)?.id as string | undefined
 
@@ -94,32 +112,46 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
       return { calculated_amount: 0, is_calculated_price_tax_inclusive: false }
     }
 
-    // Calcular peso total usando el utilitario compartido
-    const items = context?.items ?? []
+    // Calcular peso total — weight_unit desde variante primero, luego producto
     const totalQty = items.reduce((sum, item) => sum + Number(item.quantity), 0)
 
-    const productIds = [...new Set(items.map((i) => i.product_id).filter(Boolean))]
-    const weightUnitByProduct: Record<string, string> = {}
+    const variantIds = [...new Set(
+      items.map((i) => (i as unknown as Record<string, unknown>).variant_id as string | undefined).filter(Boolean)
+    )] as string[]
 
-    if (productIds.length > 0) {
-      const { rows: productRows } = await this.pool.query<{
+    const weightUnitByVariant: Record<string, string> = {}
+
+    if (variantIds.length > 0) {
+      const { rows: variantRows } = await this.pool.query<{
         id: string
-        metadata: Record<string, unknown> | null
+        weight: number | null
+        weight_unit: string | null
       }>(
-        `SELECT id, metadata FROM product WHERE id = ANY($1)`,
-        [productIds]
+        `SELECT pv.id,
+                pv.weight,
+                COALESCE(
+                  pv.metadata->>'weight_unit',
+                  p.metadata->>'weight_unit'
+                ) AS weight_unit
+         FROM product_variant pv
+         LEFT JOIN product p ON p.id = pv.product_id
+         WHERE pv.id = ANY($1)`,
+        [variantIds]
       )
-      for (const p of productRows) {
-        weightUnitByProduct[p.id] = (p.metadata?.weight_unit as string) ?? "g"
+      for (const v of variantRows) {
+        weightUnitByVariant[v.id] = v.weight_unit ?? "g"
       }
     }
 
-    const weightItems: CartItemWeight[] = items.map((item) => ({
-      weightRaw:  item.variant?.weight ?? 0,
-      weightUnit: weightUnitByProduct[item.product_id ?? ""] ?? "g",
-      quantity:   Number(item.quantity),
-      variantId:  (item as unknown as Record<string, unknown>).variant_id as string | undefined,
-    }))
+    const weightItems: CartItemWeight[] = items.map((item) => {
+      const variantId = (item as unknown as Record<string, unknown>).variant_id as string | undefined
+      return {
+        weightRaw:  item.variant?.weight ?? 0,
+        weightUnit: (variantId ? weightUnitByVariant[variantId] : undefined) ?? "g",
+        quantity:   Number(item.quantity),
+        variantId,
+      }
+    })
 
     const totalWeightLbs = calcTotalWeightLbs(weightItems)
 

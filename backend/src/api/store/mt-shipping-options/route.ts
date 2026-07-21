@@ -19,14 +19,17 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   }
 
   try {
-    // 1. Items del carrito con peso y unidad del producto
+    // 1. Items del carrito — weight_unit se lee de variant.metadata primero, luego product.metadata
     const { rows: itemRows } = await pool.query(
       `SELECT
          COALESCE(cli.unit_price, 0)  AS unit_price,
          COALESCE(cli.quantity,   0)  AS quantity,
          COALESCE(pv.weight,      0)  AS weight_raw,
          cli.variant_id,
-         p.metadata                   AS product_metadata
+         COALESCE(
+           pv.metadata->>'weight_unit',
+           p.metadata->>'weight_unit'
+         )                            AS weight_unit
        FROM  cart_line_item cli
        LEFT JOIN product_variant pv ON pv.id = cli.variant_id
        LEFT JOIN product p           ON p.id  = pv.product_id
@@ -39,7 +42,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       quantity: string | number
       weight_raw: string | number
       variant_id: string | null
-      product_metadata: Record<string, unknown> | null
+      weight_unit: string | null
     }
 
     // 2. Totales del carrito
@@ -55,7 +58,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     // 3. Peso total en libras (usando el utilitario compartido)
     const weightItems: CartItemWeight[] = itemRows.map((r: ItemRow) => ({
       weightRaw:  Number(r.weight_raw) || 0,
-      weightUnit: (r.product_metadata?.weight_unit as string) ?? "g",
+      weightUnit: r.weight_unit ?? "g",
       quantity:   Number(r.quantity) || 0,
       variantId:  r.variant_id ?? undefined,
     }))
