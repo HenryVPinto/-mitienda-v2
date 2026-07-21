@@ -26,6 +26,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
          COALESCE(cli.quantity,   0)  AS quantity,
          COALESCE(pv.weight,      0)  AS weight_raw,
          cli.variant_id,
+         cli.metadata                 AS item_metadata,
          COALESCE(
            pv.metadata->>'weight_unit',
            p.metadata->>'weight_unit'
@@ -37,11 +38,13 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       [cart_id]
     )
 
+    type TierRule = { min_quantity: number; discount_percentage: number }
     type ItemRow = {
       unit_price: string | number
       quantity: string | number
       weight_raw: string | number
       variant_id: string | null
+      item_metadata: { tier_rules?: TierRule[]; base_unit_price?: number } | null
       weight_unit: string | null
     }
 
@@ -66,7 +69,13 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     }))
     const totalWeightLbs = calcTotalWeightLbs(weightItems)
 
-    const context: ShippingContext = { cartTotalQ, totalItems, totalWeightLbs }
+    // Mayoreo: reutilizar la misma lógica que el módulo de precios (metadata.tier_rules)
+    const isWholesaleCart = itemRows.some((r: ItemRow) => {
+      const tiers = r.item_metadata?.tier_rules ?? []
+      return tiers.some((t) => Number(r.quantity) >= t.min_quantity)
+    })
+
+    const context: ShippingContext = { cartTotalQ, totalItems, totalWeightLbs, isWholesaleCart }
 
     // 4. IDs de opciones nativas de Medusa para el provider mt-fulfillment
     const { rows: nativeOptions } = await pool.query(`

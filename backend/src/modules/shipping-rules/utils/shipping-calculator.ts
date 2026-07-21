@@ -32,9 +32,10 @@ export type CartItemWeight = {
 }
 
 export type ShippingContext = {
-  cartTotalQ: number     // subtotal del carrito en QUETZALES (no centavos)
-  totalItems: number     // cantidad total de artículos
-  totalWeightLbs: number // peso total ya convertido a libras
+  cartTotalQ: number      // subtotal del carrito en QUETZALES (no centavos)
+  totalItems: number      // cantidad total de artículos
+  totalWeightLbs: number  // peso total ya convertido a libras
+  isWholesaleCart?: boolean // true si algún item tiene tier_rules activos → nunca envío gratis
 }
 
 export type ShippingDebugInfo = {
@@ -155,7 +156,9 @@ const standardEvaluator: RuleEvaluator = {
     const flatRateQ = (rule.flat_rate ?? 0) / 100
     const freeThresholdQ =
       rule.free_above_amount != null ? rule.free_above_amount / 100 : null
-    const isFree = freeThresholdQ != null && context.cartTotalQ >= freeThresholdQ
+    const isFree = !context.isWholesaleCart &&
+      freeThresholdQ != null &&
+      context.cartTotalQ >= freeThresholdQ
     const amountQ = isFree ? 0 : flatRateQ
 
     return {

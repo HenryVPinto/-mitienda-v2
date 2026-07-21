@@ -200,6 +200,34 @@ assert("peso total = 27 lbs",            totalLbs, 27)
 assertBool("regla = mayoreo",            reglaAplicable.id === "rule-wholesale", true)
 assert("costo = Q25.50 (17 lbs × 1.50)", monto, 25.50)
 
+// ─── 7. isWholesaleCart — nunca envío gratis ──────────────────────────────────
+
+console.log("\n=== isWholesaleCart — envío gratis bloqueado ===")
+
+assert(
+  "carrito mayoreo Q420 → Q35 (no gratis aunque supera umbral Q350)",
+  calcShippingAmount(standardRule, { cartTotalQ: 420, totalItems: 3, totalWeightLbs: 1, isWholesaleCart: true }),
+  35
+)
+
+assert(
+  "carrito mayoreo Q1000 → Q35 (nunca gratis aunque subtotal sea alto)",
+  calcShippingAmount(standardRule, { cartTotalQ: 1000, totalItems: 5, totalWeightLbs: 2, isWholesaleCart: true }),
+  35
+)
+
+assert(
+  "carrito NO mayoreo Q420 → Q0 (gratis, supera umbral Q350)",
+  calcShippingAmount(standardRule, { cartTotalQ: 420, totalItems: 3, totalWeightLbs: 1, isWholesaleCart: false }),
+  0
+)
+
+assert(
+  "carrito NO mayoreo Q200 → Q35 (tarifa fija, bajo umbral)",
+  calcShippingAmount(standardRule, { cartTotalQ: 200, totalItems: 1, totalWeightLbs: 0.5, isWholesaleCart: false }),
+  35
+)
+
 // ─── Resumen ──────────────────────────────────────────────────────────────────
 
 console.log(`\n${"─".repeat(50)}`)

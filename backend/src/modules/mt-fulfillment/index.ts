@@ -162,10 +162,22 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
 
     const totalWeightLbs = calcTotalWeightLbs(weightItems)
 
+    // Mayoreo: misma lógica que el módulo de precios — leer tier_rules de la metadata del item
+    type TierRule = { min_quantity: number; discount_percentage: number }
+    const isWholesaleCart = items.some((item) => {
+      const meta = (item as unknown as Record<string, unknown>).metadata as
+        | { tier_rules?: TierRule[] }
+        | null
+        | undefined
+      const tiers = meta?.tier_rules ?? []
+      return tiers.some((t) => Number(item.quantity) >= t.min_quantity)
+    })
+
     const shippingContext: ShippingContext = {
       cartTotalQ,
       totalItems: totalQty,
       totalWeightLbs,
+      isWholesaleCart,
     }
 
     const amountQ = calcShippingAmount(rule, shippingContext)
