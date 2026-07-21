@@ -3,13 +3,11 @@ import { Pool } from "pg"
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL })
 
+const TO_LBS: Record<string, number> = {
+  lb: 1, lbs: 1, g: 1 / 453.592, kg: 2.20462, oz: 0.0625,
+}
+
 // GET /store/mt-shipping-options?cart_id=...
-// Evalúa las reglas de envío activas y devuelve la tarifa correcta:
-//   - Tarifa fija base (flat_rate, en centavos DB)
-//   - Gratis si el total supera free_above_amount (en centavos DB)
-//   - Excepción por peso en mayoreo: si peso total > weight_threshold_lbs,
-//     se cobra rate_per_lb × libras_sobre_umbral (rate_per_lb en quetzales DB)
-//   - Reglas de mayoreo solo aplican si cantidad de items >= min_item_quantity
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const cart_id = req.query.cart_id as string | undefined
   if (!cart_id) {
@@ -17,40 +15,58 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   }
 
   try {
-    // Items del carrito: precio (centavos), cantidad, peso del variant (gramos)
+    // Items del carrito con peso del variant y metadata del producto (para weight_unit)
     const { rows: itemRows } = await pool.query(
       `SELECT
          COALESCE(cli.unit_price, 0)    AS unit_price,
          COALESCE(cli.quantity,   0)    AS quantity,
-         COALESCE(pv.weight,      0)    AS weight_grams
+         COALESCE(pv.weight,      0)    AS weight_raw,
+         cli.variant_id,
+         p.metadata                     AS product_metadata
        FROM  cart_line_item cli
        LEFT JOIN product_variant pv ON pv.id = cli.variant_id
+       LEFT JOIN product p ON p.id = pv.product_id
        WHERE cli.cart_id = $1 AND cli.deleted_at IS NULL`,
       [cart_id]
     )
 
-    type ItemRow = { unit_price: string | number; quantity: string | number; weight_grams: string | number }
+    type ItemRow = {
+      unit_price: string | number
+      quantity: string | number
+      weight_raw: string | number
+      variant_id: string | null
+      product_metadata: Record<string, unknown> | null
+    }
 
-    // Total en centavos
+    // Total en quetzales (unit_price está en quetzales en esta instancia)
     const cartTotal = itemRows.reduce(
       (sum: number, r: ItemRow) => sum + (Number(r.unit_price) || 0) * (Number(r.quantity) || 0),
       0
     )
 
-    // Cantidad total de ítems (para detectar mayoreo)
+    // Cantidad total de ítems (para detectar mayoreo por cantidad)
     const totalItems = itemRows.reduce(
       (sum: number, r: ItemRow) => sum + (Number(r.quantity) || 0),
       0
     )
 
-    // Peso total en libras (Medusa guarda weight en gramos; 1 lb = 453.592 g)
+    // Peso total en libras, respetando weight_unit del producto (igual que calculatePrice)
+    for (const r of itemRows) {
+      if (!Number(r.weight_raw)) {
+        console.warn(`[mt-shipping] variant ${r.variant_id ?? "?"} tiene peso 0 o null — no contribuye al cálculo de envío por peso`)
+      }
+    }
+
     const totalWeightLbs = itemRows.reduce(
       (sum: number, r: ItemRow) => {
-        const grams = (Number(r.weight_grams) || 0) * (Number(r.quantity) || 1)
-        return sum + grams / 453.592
+        const weightUnit = (r.product_metadata?.weight_unit as string) ?? "g"
+        const factor = TO_LBS[weightUnit] ?? TO_LBS["g"]
+        return sum + (Number(r.weight_raw) || 0) * factor * (Number(r.quantity) || 0)
       },
       0
     )
+
+    console.info(`[mt-shipping] cart=${cart_id} items=${totalItems} totalWeightLbs=${totalWeightLbs.toFixed(4)} cartTotal=${cartTotal}`)
 
     // Shipping options nativas de Medusa para nuestro provider
     const { rows: nativeOptions } = await pool.query(`
@@ -90,43 +106,56 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       min_item_quantity: number | null
     }
 
-    const shipping_options = rules
-      .map((rule: RuleRow) => {
-        const medusaId = ruleToMedusaId.get(rule.id)
-        if (!medusaId) return null
+    // Evaluación exclusiva: si el pedido es de mayoreo, solo aplica la regla de mayoreo.
+    // La regla de mayoreo NUNCA otorga envío gratis.
+    // Mayoreo se activa si el peso supera el umbral O si la cantidad supera el mínimo de ítems.
+    const wholesaleRule = rules.find((rule: RuleRow) => {
+      const byWeight = rule.weight_threshold_lbs != null && rule.rate_per_lb != null && totalWeightLbs > rule.weight_threshold_lbs
+      const byCount = rule.min_item_quantity != null && rule.min_item_quantity > 1 && totalItems >= rule.min_item_quantity
+      return byWeight || byCount
+    })
+    const isWholesaleOrder = !!wholesaleRule
 
-        // Reglas de mayoreo solo aplican si hay suficientes ítems
-        if (rule.min_item_quantity !== null && rule.min_item_quantity > 1 && totalItems < rule.min_item_quantity) {
-          return null
-        }
+    let shipping_options: object[]
 
-        // ¿Aplica envío gratis? free_above_amount en centavos DB; cartTotal en quetzales
-        const qualifiesFree = rule.free_above_amount != null && cartTotal >= rule.free_above_amount / 100
+    if (isWholesaleOrder) {
+      const rule = wholesaleRule!
+      const medusaId = ruleToMedusaId.get(rule.id)
 
-        // ¿Aplica excepción por peso? (peso total supera el umbral)
+      if (medusaId) {
         const hasWeightException =
           rule.weight_threshold_lbs != null &&
           rule.rate_per_lb != null &&
           totalWeightLbs > rule.weight_threshold_lbs
 
         let amount: number
-
         if (hasWeightException) {
-          // Cobrar por libras sobre el umbral — rate_per_lb se guarda en quetzales
           const extraLbs = totalWeightLbs - (rule.weight_threshold_lbs ?? 0)
-          amount = (rule.rate_per_lb ?? 0) * extraLbs
-          // Redondear a 2 decimales
-          amount = Math.round(amount * 100) / 100
-        } else if (qualifiesFree) {
-          amount = 0
+          amount = Math.round((rule.rate_per_lb ?? 0) * extraLbs * 100) / 100
         } else {
-          // flat_rate en centavos → quetzales
+          // Bajo umbral de peso: tarifa fija. NUNCA gratis en mayoreo.
           amount = (rule.flat_rate ?? 0) / 100
         }
 
-        return { id: medusaId, rule_id: rule.id, name: rule.name, amount, provider_id: "mt-fulfillment" }
-      })
-      .filter(Boolean)
+        shipping_options = [{ id: medusaId, rule_id: rule.id, name: rule.name, amount, provider_id: "mt-fulfillment" }]
+      } else {
+        shipping_options = []
+      }
+    } else {
+      // No es mayoreo: evaluar solo reglas estándar (sin min_item_quantity de mayoreo)
+      shipping_options = rules
+        .filter((rule: RuleRow) => rule.min_item_quantity == null || rule.min_item_quantity <= 1)
+        .map((rule: RuleRow) => {
+          const medusaId = ruleToMedusaId.get(rule.id)
+          if (!medusaId) return null
+
+          const qualifiesFree = rule.free_above_amount != null && cartTotal >= rule.free_above_amount / 100
+          const amount = qualifiesFree ? 0 : (rule.flat_rate ?? 0) / 100
+
+          return { id: medusaId, rule_id: rule.id, name: rule.name, amount, provider_id: "mt-fulfillment" }
+        })
+        .filter(Boolean) as object[]
+    }
 
     res.json({
       shipping_options,

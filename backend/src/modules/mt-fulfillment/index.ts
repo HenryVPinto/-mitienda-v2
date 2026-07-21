@@ -116,36 +116,49 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
 
     // Lógica de tarifa por peso (mayoreo)
     if (rule.weight_threshold_lbs != null && rule.rate_per_lb != null) {
-      const isWholesale = rule.min_item_quantity == null || totalQty >= rule.min_item_quantity
+      // Calcular peso total primero — el peso también puede activar mayoreo
+      const productIds = [...new Set(items.map((i) => i.product_id).filter(Boolean))]
+      let weightUnitByProduct: Record<string, string> = {}
 
-      if (isWholesale) {
-        // Obtener unidades de peso por producto para convertir a lbs
-        const productIds = [...new Set(items.map((i) => i.product_id).filter(Boolean))]
-        let weightUnitByProduct: Record<string, string> = {}
-
-        if (productIds.length > 0) {
-          const { rows: productRows } = await this.pool.query<{ id: string; metadata: Record<string, unknown> | null }>(
-            `SELECT id, metadata FROM product WHERE id = ANY($1)`,
-            [productIds]
-          )
-          for (const p of productRows) {
-            weightUnitByProduct[p.id] = (p.metadata?.weight_unit as string) ?? "g"
-          }
+      if (productIds.length > 0) {
+        const { rows: productRows } = await this.pool.query<{ id: string; metadata: Record<string, unknown> | null }>(
+          `SELECT id, metadata FROM product WHERE id = ANY($1)`,
+          [productIds]
+        )
+        for (const p of productRows) {
+          weightUnitByProduct[p.id] = (p.metadata?.weight_unit as string) ?? "g"
         }
+      }
 
-        const totalWeightLbs = items.reduce((sum, item) => {
-          const rawWeight = item.variant?.weight ?? 0
-          const unit = weightUnitByProduct[item.product_id ?? ""] ?? "g"
-          const factor = TO_LBS[unit] ?? TO_LBS["g"]
-          return sum + rawWeight * factor * Number(item.quantity)
-        }, 0)
+      for (const item of items) {
+        if (!(item.variant?.weight ?? 0)) {
+          console.warn(`[mt-fulfillment] item variant ${(item as Record<string, unknown>).variant_id ?? "?"} tiene peso 0 o null — no contribuye al cálculo de envío por peso`)
+        }
+      }
 
-        if (totalWeightLbs > rule.weight_threshold_lbs) {
+      const totalWeightLbs = items.reduce((sum, item) => {
+        const rawWeight = item.variant?.weight ?? 0
+        const unit = weightUnitByProduct[item.product_id ?? ""] ?? "g"
+        const factor = TO_LBS[unit] ?? TO_LBS["g"]
+        return sum + rawWeight * factor * Number(item.quantity)
+      }, 0)
+
+      const weightExceedsThreshold = totalWeightLbs > rule.weight_threshold_lbs
+      const itemsExceedMinQty = rule.min_item_quantity == null || totalQty >= rule.min_item_quantity
+
+      console.info(`[mt-fulfillment] rule=${rule.id} totalWeightLbs=${totalWeightLbs.toFixed(4)} threshold=${rule.weight_threshold_lbs} totalQty=${totalQty} minQty=${rule.min_item_quantity}`)
+
+      // Mayoreo aplica si el peso supera el umbral O si la cantidad supera el mínimo
+      if (weightExceedsThreshold || itemsExceedMinQty) {
+        if (weightExceedsThreshold) {
           const extraLbs = totalWeightLbs - rule.weight_threshold_lbs
-          // rate_per_lb está en quetzales; baseCost también en quetzales tras la conversión
-          const weightCost = Math.ceil(extraLbs * rule.rate_per_lb * 100) / 100
+          const weightCost = Math.round(extraLbs * rule.rate_per_lb * 100) / 100
+          console.info(`[mt-fulfillment] mayoreo por peso: extraLbs=${extraLbs.toFixed(4)} rate=${rule.rate_per_lb} weightCost=${weightCost} total=${flatRateQ + weightCost}`)
           return { calculated_amount: flatRateQ + weightCost, is_calculated_price_tax_inclusive: false }
         }
+        // Cantidad activa mayoreo pero peso bajo umbral: tarifa fija, NUNCA gratis
+        console.info(`[mt-fulfillment] mayoreo por cantidad, peso bajo umbral: flatRate=${flatRateQ}`)
+        return { calculated_amount: flatRateQ, is_calculated_price_tax_inclusive: false }
       }
     }
 
