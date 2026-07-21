@@ -1,11 +1,15 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Pool } from "pg"
+import {
+  calcTotalWeightLbs,
+  calcShippingAmount,
+  selectApplicableRules,
+  type ShippingRuleData,
+  type CartItemWeight,
+  type ShippingContext,
+} from "../../../modules/shipping-rules/utils/shipping-calculator"
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL })
-
-const TO_LBS: Record<string, number> = {
-  lb: 1, lbs: 1, g: 1 / 453.592, kg: 2.20462, oz: 0.0625,
-}
 
 // GET /store/mt-shipping-options?cart_id=...
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
@@ -15,17 +19,17 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   }
 
   try {
-    // Items del carrito con peso del variant y metadata del producto (para weight_unit)
+    // 1. Items del carrito con peso y unidad del producto
     const { rows: itemRows } = await pool.query(
       `SELECT
-         COALESCE(cli.unit_price, 0)    AS unit_price,
-         COALESCE(cli.quantity,   0)    AS quantity,
-         COALESCE(pv.weight,      0)    AS weight_raw,
+         COALESCE(cli.unit_price, 0)  AS unit_price,
+         COALESCE(cli.quantity,   0)  AS quantity,
+         COALESCE(pv.weight,      0)  AS weight_raw,
          cli.variant_id,
-         p.metadata                     AS product_metadata
+         p.metadata                   AS product_metadata
        FROM  cart_line_item cli
        LEFT JOIN product_variant pv ON pv.id = cli.variant_id
-       LEFT JOIN product p ON p.id = pv.product_id
+       LEFT JOIN product p           ON p.id  = pv.product_id
        WHERE cli.cart_id = $1 AND cli.deleted_at IS NULL`,
       [cart_id]
     )
@@ -38,39 +42,30 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       product_metadata: Record<string, unknown> | null
     }
 
-    // Total en quetzales (unit_price está en quetzales en esta instancia)
-    const cartTotal = itemRows.reduce(
+    // 2. Totales del carrito
+    const cartTotalQ = itemRows.reduce(
       (sum: number, r: ItemRow) => sum + (Number(r.unit_price) || 0) * (Number(r.quantity) || 0),
       0
     )
-
-    // Cantidad total de ítems (para detectar mayoreo por cantidad)
     const totalItems = itemRows.reduce(
       (sum: number, r: ItemRow) => sum + (Number(r.quantity) || 0),
       0
     )
 
-    // Peso total en libras, respetando weight_unit del producto (igual que calculatePrice)
-    for (const r of itemRows) {
-      if (!Number(r.weight_raw)) {
-        console.warn(`[mt-shipping] variant ${r.variant_id ?? "?"} tiene peso 0 o null — no contribuye al cálculo de envío por peso`)
-      }
-    }
+    // 3. Peso total en libras (usando el utilitario compartido)
+    const weightItems: CartItemWeight[] = itemRows.map((r: ItemRow) => ({
+      weightRaw:  Number(r.weight_raw) || 0,
+      weightUnit: (r.product_metadata?.weight_unit as string) ?? "g",
+      quantity:   Number(r.quantity) || 0,
+      variantId:  r.variant_id ?? undefined,
+    }))
+    const totalWeightLbs = calcTotalWeightLbs(weightItems)
 
-    const totalWeightLbs = itemRows.reduce(
-      (sum: number, r: ItemRow) => {
-        const weightUnit = (r.product_metadata?.weight_unit as string) ?? "g"
-        const factor = TO_LBS[weightUnit] ?? TO_LBS["g"]
-        return sum + (Number(r.weight_raw) || 0) * factor * (Number(r.quantity) || 0)
-      },
-      0
-    )
+    const context: ShippingContext = { cartTotalQ, totalItems, totalWeightLbs }
 
-    console.info(`[mt-shipping] cart=${cart_id} items=${totalItems} totalWeightLbs=${totalWeightLbs.toFixed(4)} cartTotal=${cartTotal}`)
-
-    // Shipping options nativas de Medusa para nuestro provider
+    // 4. IDs de opciones nativas de Medusa para el provider mt-fulfillment
     const { rows: nativeOptions } = await pool.query(`
-      SELECT so.id AS medusa_option_id,
+      SELECT so.id          AS medusa_option_id,
              so.data->>'id' AS rule_id
       FROM   shipping_option so
       WHERE  so.provider_id LIKE '%mt-fulfillment%'
@@ -83,79 +78,30 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
         .map((r: { rule_id: string; medusa_option_id: string }) => [r.rule_id, r.medusa_option_id])
     )
 
-    // Reglas activas, filtradas por min/max_order_amount, ordenadas por prioridad
-    const { rows: rules } = await pool.query(
+    // 5. Reglas activas filtradas por monto del carrito, ordenadas por prioridad
+    const { rows: rules } = await pool.query<ShippingRuleData>(
       `SELECT id, name, flat_rate, free_above_amount,
               weight_threshold_lbs, rate_per_lb, min_item_quantity,
-              min_order_amount, max_order_amount
+              min_order_amount, max_order_amount, priority, metadata
        FROM   mt_shipping_rule
        WHERE  is_active = true AND deleted_at IS NULL
          AND  (min_order_amount IS NULL OR min_order_amount <= $1)
          AND  (max_order_amount IS NULL OR max_order_amount >= $1)
        ORDER BY priority DESC`,
-      [cartTotal]
+      [cartTotalQ]
     )
 
-    type RuleRow = {
-      id: string
-      name: string
-      flat_rate: number | null
-      free_above_amount: number | null
-      weight_threshold_lbs: number | null
-      rate_per_lb: number | null
-      min_item_quantity: number | null
-    }
+    // 6. Seleccionar reglas aplicables y calcular montos
+    const applicableRules = selectApplicableRules(rules, context)
 
-    // Evaluación exclusiva: si el pedido es de mayoreo, solo aplica la regla de mayoreo.
-    // La regla de mayoreo NUNCA otorga envío gratis.
-    // Mayoreo se activa si el peso supera el umbral O si la cantidad supera el mínimo de ítems.
-    const wholesaleRule = rules.find((rule: RuleRow) => {
-      const byWeight = rule.weight_threshold_lbs != null && rule.rate_per_lb != null && totalWeightLbs > rule.weight_threshold_lbs
-      const byCount = rule.min_item_quantity != null && rule.min_item_quantity > 1 && totalItems >= rule.min_item_quantity
-      return byWeight || byCount
-    })
-    const isWholesaleOrder = !!wholesaleRule
-
-    let shipping_options: object[]
-
-    if (isWholesaleOrder) {
-      const rule = wholesaleRule!
-      const medusaId = ruleToMedusaId.get(rule.id)
-
-      if (medusaId) {
-        const hasWeightException =
-          rule.weight_threshold_lbs != null &&
-          rule.rate_per_lb != null &&
-          totalWeightLbs > rule.weight_threshold_lbs
-
-        let amount: number
-        if (hasWeightException) {
-          const extraLbs = totalWeightLbs - (rule.weight_threshold_lbs ?? 0)
-          amount = Math.round((rule.rate_per_lb ?? 0) * extraLbs * 100) / 100
-        } else {
-          // Bajo umbral de peso: tarifa fija. NUNCA gratis en mayoreo.
-          amount = (rule.flat_rate ?? 0) / 100
-        }
-
-        shipping_options = [{ id: medusaId, rule_id: rule.id, name: rule.name, amount, provider_id: "mt-fulfillment" }]
-      } else {
-        shipping_options = []
-      }
-    } else {
-      // No es mayoreo: evaluar solo reglas estándar (sin min_item_quantity de mayoreo)
-      shipping_options = rules
-        .filter((rule: RuleRow) => rule.min_item_quantity == null || rule.min_item_quantity <= 1)
-        .map((rule: RuleRow) => {
-          const medusaId = ruleToMedusaId.get(rule.id)
-          if (!medusaId) return null
-
-          const qualifiesFree = rule.free_above_amount != null && cartTotal >= rule.free_above_amount / 100
-          const amount = qualifiesFree ? 0 : (rule.flat_rate ?? 0) / 100
-
-          return { id: medusaId, rule_id: rule.id, name: rule.name, amount, provider_id: "mt-fulfillment" }
-        })
-        .filter(Boolean) as object[]
-    }
+    const shipping_options = applicableRules
+      .map((rule) => {
+        const medusaId = ruleToMedusaId.get(rule.id)
+        if (!medusaId) return null
+        const amount = calcShippingAmount(rule, context)
+        return { id: medusaId, rule_id: rule.id, name: rule.name, amount, provider_id: "mt-fulfillment" }
+      })
+      .filter(Boolean)
 
     res.json({
       shipping_options,
