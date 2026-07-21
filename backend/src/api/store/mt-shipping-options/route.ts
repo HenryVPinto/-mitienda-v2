@@ -46,10 +46,12 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     }
 
     // 2. Totales del carrito
-    const cartTotalQ = itemRows.reduce(
+    // unit_price en cart_line_item está en centavos (ej. Q140 → 14000)
+    const cartTotalCents = itemRows.reduce(
       (sum: number, r: ItemRow) => sum + (Number(r.unit_price) || 0) * (Number(r.quantity) || 0),
       0
     )
+    const cartTotalQ = cartTotalCents / 100  // quetzales para el calculador
     const totalItems = itemRows.reduce(
       (sum: number, r: ItemRow) => sum + (Number(r.quantity) || 0),
       0
@@ -82,6 +84,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     )
 
     // 5. Reglas activas filtradas por monto del carrito, ordenadas por prioridad
+    // min/max_order_amount en la DB están en centavos → pasar cartTotalCents
     const { rows: rules } = await pool.query<ShippingRuleData>(
       `SELECT id, name, flat_rate, free_above_amount,
               weight_threshold_lbs, rate_per_lb, min_item_quantity,
@@ -91,7 +94,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
          AND  (min_order_amount IS NULL OR min_order_amount <= $1)
          AND  (max_order_amount IS NULL OR max_order_amount >= $1)
        ORDER BY priority DESC`,
-      [cartTotalQ]
+      [cartTotalCents]
     )
 
     // 6. Seleccionar reglas aplicables y calcular montos

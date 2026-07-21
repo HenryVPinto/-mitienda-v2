@@ -59,6 +59,8 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
       ctx?.cart_id as string | undefined ??
       (items[0] as unknown as Record<string, unknown>)?.cart_id as string | undefined
 
+    // unit_price en cart_line_item está en centavos (ej. Q140 → 14000)
+    let cartTotalCents = 0
     let cartTotalQ = 0
 
     if (cartId) {
@@ -68,13 +70,15 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
          WHERE cart_id = $1 AND deleted_at IS NULL`,
         [cartId]
       )
-      cartTotalQ = Number(cartRows[0]?.total ?? 0)
+      cartTotalCents = Number(cartRows[0]?.total ?? 0)
+      cartTotalQ = cartTotalCents / 100  // quetzales para el calculador
     } else {
-      // Fallback si Medusa sí entrega los precios en el contexto
-      cartTotalQ = items.reduce(
+      // Fallback: context.items.unit_price también viene en centavos desde Medusa
+      cartTotalCents = items.reduce(
         (sum, item) => sum + Number(item.unit_price ?? 0) * Number(item.quantity),
         0
       )
+      cartTotalQ = cartTotalCents / 100
     }
 
     const ruleId = (optionData as Record<string, unknown>)?.id as string | undefined
@@ -95,6 +99,7 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
     }
 
     // Fallback: regla más prioritaria que coincida con el monto del carrito
+    // min/max_order_amount en la DB están en centavos → pasar cartTotalCents
     if (!rule) {
       const { rows } = await this.pool.query<ShippingRuleData>(
         `SELECT id, name, flat_rate, free_above_amount, min_order_amount, max_order_amount,
@@ -105,7 +110,7 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
            AND (max_order_amount IS NULL OR max_order_amount >= $1)
          ORDER BY priority DESC
          LIMIT 1`,
-        [cartTotalQ]
+        [cartTotalCents]
       )
       rule = rows[0]
     }
