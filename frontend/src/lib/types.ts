@@ -177,6 +177,7 @@ export type Order = {
   fulfillment_status?: string
   total: number
   subtotal: number
+  discount_total?: number
   shipping_total?: number
   items: LineItem[]
   shipping_address?: Address | null

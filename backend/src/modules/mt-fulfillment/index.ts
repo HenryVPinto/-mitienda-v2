@@ -53,8 +53,10 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
   ) {
     // Medusa no garantiza unit_price en context.items — leer el total directamente de la DB
     const items = context?.items ?? []
+    const ctx = context as unknown as Record<string, unknown>
     const cartId =
-      (context as unknown as Record<string, unknown>)?.cart_id as string | undefined ??
+      (ctx?.cart as Record<string, unknown> | undefined)?.id as string | undefined ??
+      ctx?.cart_id as string | undefined ??
       (items[0] as unknown as Record<string, unknown>)?.cart_id as string | undefined
 
     let cartTotalQ = 0

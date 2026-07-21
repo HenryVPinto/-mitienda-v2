@@ -12,7 +12,7 @@ type Props = {
 }
 
 const ORDER_FIELDS =
-  "id,display_id,status,payment_status,fulfillment_status,total,subtotal,shipping_total,email,metadata,items.*,items.title,items.thumbnail,items.quantity,items.unit_price,items.total,shipping_address.*"
+  "id,display_id,status,payment_status,fulfillment_status,total,subtotal,discount_total,shipping_total,email,metadata,items.*,items.title,items.thumbnail,items.quantity,items.unit_price,items.total,shipping_address.*"
 
 const WA_NUMBER = "50258648118"
 
@@ -161,7 +161,7 @@ export default async function OrderConfirmationPage({ params }: Props) {
                 <p className="text-xs text-gray-500">Cantidad: {item.quantity}</p>
               </div>
               <p className="text-sm font-semibold text-gray-800 whitespace-nowrap">
-                {formatGTQ(item.unit_price * item.quantity)}
+                {formatGTQ(item.total)}
               </p>
             </div>
           ))}
@@ -173,6 +173,12 @@ export default async function OrderConfirmationPage({ params }: Props) {
             <span>Subtotal</span>
             <span>{formatGTQ(order.items.reduce((s, i) => s + i.unit_price * i.quantity, 0))}</span>
           </div>
+          {(order.discount_total ?? 0) > 0 && (
+            <div className="flex justify-between text-sm text-green-600">
+              <span>Desc. volumen</span>
+              <span>-{formatGTQ(order.discount_total!)}</span>
+            </div>
+          )}
           {(order.shipping_total ?? 0) > 0 && (
             <div className="flex justify-between text-sm text-gray-600">
               <span>Envío</span>
