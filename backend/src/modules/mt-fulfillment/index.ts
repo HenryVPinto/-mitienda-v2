@@ -132,7 +132,7 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
 
       for (const item of items) {
         if (!(item.variant?.weight ?? 0)) {
-          console.warn(`[mt-fulfillment] item variant ${(item as Record<string, unknown>).variant_id ?? "?"} tiene peso 0 o null — no contribuye al cálculo de envío por peso`)
+          console.warn(`[mt-fulfillment] item variant ${(item as unknown as Record<string, unknown>).variant_id ?? "?"} tiene peso 0 o null — no contribuye al cálculo de envío por peso`)
         }
       }
 
