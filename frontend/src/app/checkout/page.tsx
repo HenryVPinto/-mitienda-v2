@@ -167,6 +167,9 @@ export default function CheckoutPage() {
     setLoading(true)
     setError("")
     try {
+      // Escribir precios de mayoreo en Medusa antes de completar la orden
+      await storePost("/store/mt-apply-wholesale-prices", { cart_id: cartId })
+
       await storePost(`/store/carts/${cartId}`, {
         metadata: { payment_method: selectedPayment },
       })
