@@ -5,6 +5,7 @@ import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 import { storeGet } from "@/lib/medusa"
 import { formatGTQ } from "@/lib/format"
+import { getEffectiveUnitPrice } from "@/lib/pricing"
 import type { Order } from "@/lib/types"
 
 type Props = {
@@ -47,7 +48,10 @@ function PaymentInstructions({ order }: { order: Order }) {
           Realiza tu depósito o transferencia y envía el comprobante por WhatsApp para confirmar tu entrega.
         </p>
         <a
-          href={buildWhatsAppUrl(order.display_id ?? order.id, order.total)}
+          href={buildWhatsAppUrl(
+            order.display_id ?? order.id,
+            order.items.reduce((s, i) => s + getEffectiveUnitPrice(i) * i.quantity, 0) + (order.shipping_total ?? 0)
+          )}
           target="_blank"
           rel="noopener noreferrer"
           className={cn(
@@ -146,51 +150,58 @@ export default async function OrderConfirmationPage({ params }: Props) {
           <p className="text-sm font-semibold text-gray-700">Productos pedidos</p>
         </div>
         <div className="divide-y divide-gray-100">
-          {order.items.map((item) => (
-            <div key={item.id} className="flex items-center gap-3 px-5 py-3">
-              <div className="w-12 h-12 flex-shrink-0 bg-gray-50 rounded-lg border border-gray-100 flex items-center justify-center overflow-hidden">
-                {item.thumbnail ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={item.thumbnail} alt={item.title} className="w-full h-full object-contain p-1" />
-                ) : (
-                  <ShoppingBag className="w-5 h-5 text-gray-300" />
-                )}
+          {order.items.map((item) => {
+            const effectivePrice = getEffectiveUnitPrice(item)
+            return (
+              <div key={item.id} className="flex items-center gap-3 px-5 py-3">
+                <div className="w-12 h-12 flex-shrink-0 bg-gray-50 rounded-lg border border-gray-100 flex items-center justify-center overflow-hidden">
+                  {item.thumbnail ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={item.thumbnail} alt={item.title} className="w-full h-full object-contain p-1" />
+                  ) : (
+                    <ShoppingBag className="w-5 h-5 text-gray-300" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">{item.title}</p>
+                  <p className="text-xs text-gray-500">Cantidad: {item.quantity}</p>
+                </div>
+                <p className="text-sm font-semibold text-gray-800 whitespace-nowrap">
+                  {formatGTQ(effectivePrice * item.quantity)}
+                </p>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-800 truncate">{item.title}</p>
-                <p className="text-xs text-gray-500">Cantidad: {item.quantity}</p>
-              </div>
-              <p className="text-sm font-semibold text-gray-800 whitespace-nowrap">
-                {formatGTQ(item.total)}
-              </p>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         {/* Totales */}
-        <div className="px-5 py-4 bg-gray-50 border-t border-gray-100 space-y-2">
-          <div className="flex justify-between text-sm text-gray-600">
-            <span>Subtotal</span>
-            <span>{formatGTQ(order.items.reduce((s, i) => s + i.unit_price * i.quantity, 0))}</span>
-          </div>
-          {(order.discount_total ?? 0) > 0 && (
-            <div className="flex justify-between text-sm text-green-600">
-              <span>Desc. volumen</span>
-              <span>-{formatGTQ(order.discount_total!)}</span>
+        {(() => {
+          const effectiveSubtotal = order.items.reduce(
+            (s, i) => s + getEffectiveUnitPrice(i) * i.quantity,
+            0
+          )
+          const shippingTotal = order.shipping_total ?? 0
+          const effectiveTotal = effectiveSubtotal + shippingTotal
+          return (
+            <div className="px-5 py-4 bg-gray-50 border-t border-gray-100 space-y-2">
+              <div className="flex justify-between text-sm text-gray-600">
+                <span>Subtotal</span>
+                <span>{formatGTQ(effectiveSubtotal)}</span>
+              </div>
+              {shippingTotal > 0 && (
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>Envío</span>
+                  <span>{formatGTQ(shippingTotal)}</span>
+                </div>
+              )}
+              <Separator />
+              <div className="flex justify-between font-bold text-base">
+                <span>Total a pagar</span>
+                <span className="text-[var(--color-brand-orange)]">{formatGTQ(effectiveTotal)}</span>
+              </div>
             </div>
-          )}
-          {(order.shipping_total ?? 0) > 0 && (
-            <div className="flex justify-between text-sm text-gray-600">
-              <span>Envío</span>
-              <span>{formatGTQ(order.shipping_total!)}</span>
-            </div>
-          )}
-          <Separator />
-          <div className="flex justify-between font-bold text-base">
-            <span>Total a pagar</span>
-            <span className="text-[var(--color-brand-orange)]">{formatGTQ(order.total)}</span>
-          </div>
-        </div>
+          )
+        })()}
       </div>
 
       {/* Dirección de entrega */}
