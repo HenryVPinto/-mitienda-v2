@@ -51,41 +51,8 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
     _data: CalculateShippingOptionPriceDTO["data"],
     context: CalculateShippingOptionPriceDTO["context"]
   ) {
-    // Medusa no garantiza unit_price en context.items — leer el total directamente de la DB
-    const items = context?.items ?? []
-    const ctx = context as unknown as Record<string, unknown>
-    console.log("[mt-fulfillment][ctx-keys]", JSON.stringify({
-      keys: Object.keys(ctx ?? {}),
-      cartKeys: Object.keys((ctx?.cart as Record<string,unknown>) ?? {}),
-      itemsLen: items.length,
-      rawContext: JSON.stringify(ctx).slice(0, 500),
-    }))
-    const cartId =
-      (ctx?.cart as Record<string, unknown> | undefined)?.id as string | undefined ??
-      ctx?.cart_id as string | undefined ??
-      (items[0] as unknown as Record<string, unknown>)?.cart_id as string | undefined
-
-    // unit_price en cart_line_item está en centavos (ej. Q140 → 14000)
-    let cartTotalCents = 0
-    let cartTotalQ = 0
-
-    if (cartId) {
-      const { rows: cartRows } = await this.pool.query<{ total: string }>(
-        `SELECT COALESCE(SUM(COALESCE(unit_price, 0) * COALESCE(quantity, 0)), 0) AS total
-         FROM cart_line_item
-         WHERE cart_id = $1 AND deleted_at IS NULL`,
-        [cartId]
-      )
-      cartTotalCents = Number(cartRows[0]?.total ?? 0)
-      cartTotalQ = cartTotalCents / 100  // quetzales para el calculador
-    } else {
-      // Fallback: context.items.unit_price también viene en centavos desde Medusa
-      cartTotalCents = items.reduce(
-        (sum, item) => sum + Number(item.unit_price ?? 0) * Number(item.quantity),
-        0
-      )
-      cartTotalQ = cartTotalCents / 100
-    }
+    // CartPropsForFulfillment pone el cartId en context.id directamente (no en context.cart.id)
+    const cartId = (context as unknown as Record<string, unknown>).id as string | undefined
 
     const ruleId = (optionData as Record<string, unknown>)?.id as string | undefined
 
@@ -104,69 +71,66 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
       rule = rows[0]
     }
 
-    // Fallback: regla más prioritaria que coincida con el monto del carrito
-    // min/max_order_amount en la DB están en centavos → pasar cartTotalCents
-    if (!rule) {
-      const { rows } = await this.pool.query<ShippingRuleData>(
-        `SELECT id, name, flat_rate, free_above_amount, min_order_amount, max_order_amount,
-                weight_threshold_lbs, rate_per_lb, min_item_quantity, priority, metadata
-         FROM mt_shipping_rule
-         WHERE is_active = true AND deleted_at IS NULL
-           AND (min_order_amount IS NULL OR min_order_amount <= $1)
-           AND (max_order_amount IS NULL OR max_order_amount >= $1)
-         ORDER BY priority DESC
-         LIMIT 1`,
-        [cartTotalCents]
-      )
-      rule = rows[0]
-    }
-
     if (!rule) {
       return { calculated_amount: 0, is_calculated_price_tax_inclusive: false }
     }
 
-    // Calcular peso total — weight_unit desde variante primero, luego producto
-    const totalQty = items.reduce((sum, item) => sum + Number(item.quantity), 0)
-
-    const variantIds = [...new Set(
-      items.map((i) => (i as unknown as Record<string, unknown>).variant_id as string | undefined).filter(Boolean)
-    )] as string[]
-
-    const weightUnitByVariant: Record<string, string> = {}
-    const weightByVariant: Record<string, number> = {}
-
-    if (variantIds.length > 0) {
-      const { rows: variantRows } = await this.pool.query<{
-        id: string
-        weight: number | null
-        weight_unit: string | null
-      }>(
-        `SELECT pv.id,
-                pv.weight,
-                COALESCE(
-                  pv.metadata->>'weight_unit',
-                  p.metadata->>'weight_unit'
-                ) AS weight_unit
-         FROM product_variant pv
-         LEFT JOIN product p ON p.id = pv.product_id
-         WHERE pv.id = ANY($1)`,
-        [variantIds]
-      )
-      for (const v of variantRows) {
-        weightByVariant[v.id] = v.weight ?? 0
-        weightUnitByVariant[v.id] = v.weight_unit ?? "g"
-      }
+    // Sin cartId no podemos calcular — devolver tarifa base como fallback
+    if (!cartId) {
+      console.warn("[mt-fulfillment] calculatePrice llamado sin cartId en context")
+      const fallback = (rule.flat_rate ?? 0) / 100
+      return { calculated_amount: fallback, is_calculated_price_tax_inclusive: false }
     }
 
-    const weightItems: CartItemWeight[] = items.map((item) => {
-      const variantId = (item as unknown as Record<string, unknown>).variant_id as string | undefined
-      const weightRaw  = (variantId ? weightByVariant[variantId] : undefined) ?? item.variant?.weight ?? 0
-      const weightUnit = (variantId ? weightUnitByVariant[variantId] : undefined) ?? "g"
-      const qty        = Number(item.quantity)
+    // Leer items directamente desde la DB — misma lógica que /store/mt-shipping-options
+    // unit_price en cart_line_item está en centavos (ej. Q140 → 14000)
+    type ItemRow = {
+      unit_price: string | number
+      quantity: string | number
+      weight_raw: string | number
+      variant_id: string | null
+      item_metadata: { tier_rules?: { min_quantity: number; discount_percentage: number }[] } | null
+      weight_unit: string | null
+    }
+
+    const { rows: itemRows } = await this.pool.query<ItemRow>(
+      `SELECT
+         COALESCE(cli.unit_price, 0)  AS unit_price,
+         COALESCE(cli.quantity,   0)  AS quantity,
+         COALESCE(pv.weight,      0)  AS weight_raw,
+         cli.variant_id,
+         cli.metadata                 AS item_metadata,
+         COALESCE(
+           pv.metadata->>'weight_unit',
+           p.metadata->>'weight_unit'
+         )                            AS weight_unit
+       FROM  cart_line_item cli
+       LEFT JOIN product_variant pv ON pv.id = cli.variant_id
+       LEFT JOIN product p           ON p.id  = pv.product_id
+       WHERE cli.cart_id = $1 AND cli.deleted_at IS NULL`,
+      [cartId]
+    )
+
+    const cartTotalCents = itemRows.reduce(
+      (sum, r) => sum + (Number(r.unit_price) || 0) * (Number(r.quantity) || 0),
+      0
+    )
+    const cartTotalQ  = cartTotalCents / 100
+    const totalQty    = itemRows.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+
+    const isWholesaleCart = itemRows.some((r) => {
+      const tiers = r.item_metadata?.tier_rules ?? []
+      return tiers.some((t) => Number(r.quantity) >= t.min_quantity)
+    })
+
+    const weightItems: CartItemWeight[] = itemRows.map((r) => {
+      const weightRaw  = Number(r.weight_raw) || 0
+      const weightUnit = r.weight_unit ?? "g"
+      const qty        = Number(r.quantity) || 0
       console.log(
-        `[mt-fulfillment][weight] variant=${variantId} raw=${weightRaw} unit=${weightUnit} qty=${qty} lineWeightRaw=${weightRaw * qty}`
+        `[mt-fulfillment][weight] variant=${r.variant_id} raw=${weightRaw} unit=${weightUnit} qty=${qty} lineWeightRaw=${weightRaw * qty}`
       )
-      return { weightRaw, weightUnit, quantity: qty, variantId }
+      return { weightRaw, weightUnit, quantity: qty, variantId: r.variant_id ?? undefined }
     })
 
     const totalWeightLbs = calcTotalWeightLbs(weightItems)
@@ -176,17 +140,6 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
     console.log(
       `[mt-fulfillment][rule] name="${rule.name}" flat_rate=${rule.flat_rate} threshold_lbs=${rule.weight_threshold_lbs} rate_per_lb=${rule.rate_per_lb} min_items=${rule.min_item_quantity}`
     )
-
-    // Mayoreo: misma lógica que el módulo de precios — leer tier_rules de la metadata del item
-    type TierRule = { min_quantity: number; discount_percentage: number }
-    const isWholesaleCart = items.some((item) => {
-      const meta = (item as unknown as Record<string, unknown>).metadata as
-        | { tier_rules?: TierRule[] }
-        | null
-        | undefined
-      const tiers = meta?.tier_rules ?? []
-      return tiers.some((t) => Number(item.quantity) >= t.min_quantity)
-    })
 
     const shippingContext: ShippingContext = {
       cartTotalQ,
