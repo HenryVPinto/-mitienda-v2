@@ -167,18 +167,24 @@ export default function CheckoutPage() {
     setLoading(true)
     setError("")
     try {
-      // Escribir precios de mayoreo en Medusa antes de completar la orden
-      await storePost("/store/mt-apply-wholesale-prices", { cart_id: cartId })
-
       await storePost(`/store/carts/${cartId}`, {
         metadata: { payment_method: selectedPayment },
       })
+
+      // Aplicar precios de mayoreo justo antes de complete (después del PATCH
+      // de metadata, que podría recalcular precios)
+      await storePost("/store/mt-apply-wholesale-prices", { cart_id: cartId })
+
       const data = await storePost<{ order?: { id: string } }>(
         `/store/carts/${cartId}/complete`,
         {}
       )
       const orderId = data.order?.id
       if (!orderId) throw new Error("No se pudo confirmar el pedido. Intenta de nuevo.")
+
+      // Corregir precios en la orden (por si Medusa recalculó al completar)
+      await storePost("/store/mt-fix-order-prices", { order_id: orderId }).catch(() => {})
+
       clearCart()
       router.push(`/pedido/${orderId}`)
     } catch (e) {

@@ -50,9 +50,12 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 
       if (effectivePrice === Number(item.unit_price)) continue
 
+      // raw_unit_price es el campo que Medusa prioriza al crear la orden
+      const rawUnitPrice = { value: `${effectivePrice}.00000000000000000`, precision: 20 }
+
       await pool.query(
-        `UPDATE cart_line_item SET unit_price = $1 WHERE id = $2`,
-        [effectivePrice, item.id]
+        `UPDATE cart_line_item SET unit_price = $1, raw_unit_price = $2 WHERE id = $3`,
+        [effectivePrice, JSON.stringify(rawUnitPrice), item.id]
       )
       updated++
       console.log(
