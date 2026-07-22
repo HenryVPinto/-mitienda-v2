@@ -127,6 +127,7 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
     )] as string[]
 
     const weightUnitByVariant: Record<string, string> = {}
+    const weightByVariant: Record<string, number> = {}
 
     if (variantIds.length > 0) {
       const { rows: variantRows } = await this.pool.query<{
@@ -146,21 +147,29 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
         [variantIds]
       )
       for (const v of variantRows) {
+        weightByVariant[v.id] = v.weight ?? 0
         weightUnitByVariant[v.id] = v.weight_unit ?? "g"
       }
     }
 
     const weightItems: CartItemWeight[] = items.map((item) => {
       const variantId = (item as unknown as Record<string, unknown>).variant_id as string | undefined
-      return {
-        weightRaw:  item.variant?.weight ?? 0,
-        weightUnit: (variantId ? weightUnitByVariant[variantId] : undefined) ?? "g",
-        quantity:   Number(item.quantity),
-        variantId,
-      }
+      const weightRaw  = (variantId ? weightByVariant[variantId] : undefined) ?? item.variant?.weight ?? 0
+      const weightUnit = (variantId ? weightUnitByVariant[variantId] : undefined) ?? "g"
+      const qty        = Number(item.quantity)
+      console.log(
+        `[mt-fulfillment][weight] variant=${variantId} raw=${weightRaw} unit=${weightUnit} qty=${qty} lineWeightRaw=${weightRaw * qty}`
+      )
+      return { weightRaw, weightUnit, quantity: qty, variantId }
     })
 
     const totalWeightLbs = calcTotalWeightLbs(weightItems)
+    console.log(
+      `[mt-fulfillment][weight] totalWeightLbs=${totalWeightLbs.toFixed(4)} totalItems=${totalQty} cartTotalQ=${cartTotalQ}`
+    )
+    console.log(
+      `[mt-fulfillment][rule] name="${rule.name}" flat_rate=${rule.flat_rate} threshold_lbs=${rule.weight_threshold_lbs} rate_per_lb=${rule.rate_per_lb} min_items=${rule.min_item_quantity}`
+    )
 
     // Mayoreo: misma lógica que el módulo de precios — leer tier_rules de la metadata del item
     type TierRule = { min_quantity: number; discount_percentage: number }
