@@ -117,6 +117,40 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       )
     }
 
+    // 3. Actualizar payment_collection, payment_session y payment
+    const { rows: payments } = await pool.query<{
+      payment_id: string
+      payment_session_id: string
+      payment_collection_id: string
+      amount: string | number
+    }>(
+      `SELECT id AS payment_id, payment_session_id, payment_collection_id, amount
+       FROM payment
+       WHERE order_id = $1 AND deleted_at IS NULL`,
+      [order_id]
+    )
+
+    for (const p of payments) {
+      const newAmount = Number(p.amount) + itemsSubtotalDelta
+
+      await pool.query(
+        `UPDATE payment SET amount = $1, raw_amount = $2 WHERE id = $3`,
+        [newAmount, JSON.stringify(toRaw(newAmount)), p.payment_id]
+      )
+      await pool.query(
+        `UPDATE payment_session SET amount = $1, raw_amount = $2 WHERE id = $3`,
+        [newAmount, JSON.stringify(toRaw(newAmount)), p.payment_session_id]
+      )
+      await pool.query(
+        `UPDATE payment_collection SET amount = $1, raw_amount = $2 WHERE id = $3`,
+        [newAmount, JSON.stringify(toRaw(newAmount)), p.payment_collection_id]
+      )
+
+      console.log(
+        `[mt-fix-order-prices] payment=${p.payment_id} ${Number(p.amount)}→${newAmount}`
+      )
+    }
+
     res.json({ updated: true, delta: itemsSubtotalDelta })
   } catch (err) {
     console.error("[mt-fix-order-prices POST]", err)
