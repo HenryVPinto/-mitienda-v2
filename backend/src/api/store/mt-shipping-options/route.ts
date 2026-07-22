@@ -61,12 +61,13 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     )
 
     // 3. Peso total en libras (usando el utilitario compartido)
-    const weightItems: CartItemWeight[] = itemRows.map((r: ItemRow) => ({
-      weightRaw:  Number(r.weight_raw) || 0,
-      weightUnit: r.weight_unit ?? "g",
-      quantity:   Number(r.quantity) || 0,
-      variantId:  r.variant_id ?? undefined,
-    }))
+    const weightItems: CartItemWeight[] = itemRows.map((r: ItemRow) => {
+      const weightRaw  = Number(r.weight_raw) || 0
+      const weightUnit = r.weight_unit ?? "g"
+      const qty        = Number(r.quantity) || 0
+      console.log(`[mt-shipping-options][item] cart=${cart_id} variant=${r.variant_id} weight_raw=${r.weight_raw} weight_unit=${r.weight_unit} qty=${r.quantity} → raw=${weightRaw} unit=${weightUnit}`)
+      return { weightRaw, weightUnit, quantity: qty, variantId: r.variant_id ?? undefined }
+    })
     const totalWeightLbs = calcTotalWeightLbs(weightItems)
 
     // Mayoreo: reutilizar la misma lógica que el módulo de precios (metadata.tier_rules)
@@ -74,6 +75,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       const tiers = r.item_metadata?.tier_rules ?? []
       return tiers.some((t) => Number(r.quantity) >= t.min_quantity)
     })
+    console.log(`[mt-shipping-options][totals] cart=${cart_id} items=${itemRows.length} totalItems=${totalItems} totalWeightLbs=${totalWeightLbs.toFixed(4)} cartTotalQ=${cartTotalQ} isWholesale=${isWholesaleCart}`)
 
     const context: ShippingContext = { cartTotalQ, totalItems, totalWeightLbs, isWholesaleCart }
 
@@ -109,11 +111,13 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     // 6. Seleccionar reglas aplicables y calcular montos
     const applicableRules = selectApplicableRules(rules, context)
 
+    console.log(`[mt-shipping-options][rules] total_rules=${rules.length} applicable=${applicableRules.length} applicable_names=${applicableRules.map(r=>r.name).join(",")}`)
     const shipping_options = applicableRules
       .map((rule) => {
         const medusaId = ruleToMedusaId.get(rule.id)
-        if (!medusaId) return null
+        if (!medusaId) { console.log(`[mt-shipping-options][WARN] rule "${rule.name}" no tiene Medusa ID — no se incluirá`); return null }
         const amount = calcShippingAmount(rule, context)
+        console.log(`[mt-shipping-options][result] rule="${rule.name}" flat_rate=${rule.flat_rate} threshold=${rule.weight_threshold_lbs} rate_per_lb=${rule.rate_per_lb} min_items=${rule.min_item_quantity} → amount=${amount}`)
         return { id: medusaId, rule_id: rule.id, name: rule.name, amount, provider_id: "mt-fulfillment" }
       })
       .filter(Boolean)
