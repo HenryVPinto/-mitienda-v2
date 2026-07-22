@@ -277,7 +277,7 @@ export default function CartPage() {
               href="/checkout"
               className={cn(buttonVariants({ variant: "default" }), "w-full bg-primary hover:bg-primary/90 h-11 font-semibold")}
             >
-              Ir al Checkout →
+              Ir al Total a Pagar →
             </Link>
             <Link
               href="/"

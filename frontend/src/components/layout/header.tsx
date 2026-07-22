@@ -43,7 +43,7 @@ export function Header() {
             <div className="relative flex-1">
               <Input
                 type="search"
-                placeholder="¿Qué estás buscando hoy?"
+                placeholder="¡Hola! ¿Qué buscas hoy?"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 className="pr-10 h-10"

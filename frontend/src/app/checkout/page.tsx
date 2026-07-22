@@ -47,7 +47,7 @@ const EMPTY_ADDRESS: AddressForm = {
 const PAYMENT_OPTIONS: { id: PaymentMethod; icon: React.ReactNode; title: string; desc: string }[] = [
   { id: "cash_on_delivery", icon: <Truck className="w-5 h-5" />, title: "Contra entrega", desc: "Pagarás en efectivo al recibir tu pedido" },
   { id: "bank_transfer", icon: <Building2 className="w-5 h-5" />, title: "Depósito / Transferencia", desc: "Realiza un depósito o transferencia a nuestras cuentas bancarias" },
-  { id: "visalink", icon: <CreditCard className="w-5 h-5" />, title: "VisaLink / Link de pago", desc: "Te enviaremos el link de pago por WhatsApp o Messenger" },
+  { id: "visalink", icon: <CreditCard className="w-5 h-5" />, title: "NeoLink / Link de pago", desc: "Te enviaremos el link de pago por WhatsApp o Messenger" },
 ]
 
 export default function CheckoutPage() {

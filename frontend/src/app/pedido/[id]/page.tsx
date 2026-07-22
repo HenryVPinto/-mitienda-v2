@@ -91,7 +91,7 @@ function PaymentInstructions({ order }: { order: Order }) {
 
 function paymentLabel(method: string | undefined) {
   if (method === "bank_transfer") return "Depósito / Transferencia"
-  if (method === "visalink") return "VisaLink / Link de pago"
+  if (method === "visalink") return "NeoLink / Link de pago"
   return "Contra entrega"
 }
 

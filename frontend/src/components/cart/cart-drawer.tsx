@@ -114,7 +114,7 @@ export function CartDrawer({ open, onClose }: Props) {
                 onClick={onClose}
                 className={cn(buttonVariants({ variant: "outline" }), "w-full")}
               >
-                Ir al Checkout
+                Ir al Total a Pagar
               </Link>
             </div>
           </>

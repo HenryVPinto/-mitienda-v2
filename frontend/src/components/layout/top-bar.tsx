@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Truck, HelpCircle, MapPin } from "lucide-react"
+import { Truck, MapPin } from "lucide-react"
 
 export function TopBar() {
   return (
@@ -14,16 +14,17 @@ export function TopBar() {
           <span className="hidden sm:block">Pago Seguro</span>
         </div>
         <div className="flex items-center gap-4">
-          <Link href="/ayuda" className="flex items-center gap-1 hover:text-primary">
-            <HelpCircle className="w-3 h-3" />
-            Ayuda
-          </Link>
           <Link href="/vende" className="hover:text-primary hidden sm:block">
             Vende en MiTienda
           </Link>
-          <Link href="/mi-cuenta" className="flex items-center gap-1 hover:text-primary">
+          <Link
+            href="https://www.cargoexpreso.com/rastreo"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 hover:text-primary"
+          >
             <MapPin className="w-3 h-3" />
-            Rastrea tu pedido
+            Rastrear Mi Pedido
           </Link>
         </div>
       </div>
