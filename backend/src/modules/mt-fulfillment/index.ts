@@ -97,7 +97,7 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
       `SELECT
          COALESCE(cli.unit_price, 0)  AS unit_price,
          COALESCE(cli.quantity,   0)  AS quantity,
-         COALESCE(pv.weight,      0)  AS weight_raw,
+         COALESCE(pv.weight, p.weight, 0)  AS weight_raw,
          cli.variant_id,
          cli.metadata                 AS item_metadata,
          COALESCE(
