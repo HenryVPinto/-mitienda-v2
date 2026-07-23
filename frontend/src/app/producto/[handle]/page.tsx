@@ -12,7 +12,7 @@ type Props = {
 }
 
 const PRODUCT_FIELDS =
-  "id,title,handle,description,thumbnail,images.*,options.*,options.values.*,variants.*,variants.prices.*,variants.calculated_price.*,variants.options.*,variants.metadata,variants.images.*,categories.*,collection_id,collection.*,material,weight,height,width,length,metadata,mt_brand.*,mt_vendor.*,mt_product_extension.*"
+  "id,title,handle,description,thumbnail,images.*,options.*,options.values.*,variants.*,variants.thumbnail,variants.prices.*,variants.calculated_price.*,variants.options.*,variants.metadata,variants.images.*,categories.*,collection_id,collection.*,material,weight,height,width,length,metadata,mt_brand.*,mt_vendor.*,mt_product_extension.*"
 
 async function getProduct(handle: string): Promise<Product | null> {
   try {

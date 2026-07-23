@@ -138,7 +138,11 @@ export function ProductDetail({ product, pricingTiers }: Props) {
     ? [{ id: "thumb", url: product.thumbnail }]
     : []
 
-  const variantImageUrl = currentVariant?.images?.[0]?.url ?? null
+  // Imagen de la variante: primero su galería propia, luego su thumbnail
+  const variantImageUrl =
+    currentVariant?.images?.[0]?.url ??
+    currentVariant?.thumbnail ??
+    null
 
   const galleryImages = variantImageUrl
     ? [{ id: `v-${currentVariant?.id}`, url: variantImageUrl }, ...baseImages.filter((img) => img.url !== variantImageUrl)]

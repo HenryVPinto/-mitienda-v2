@@ -39,6 +39,7 @@ export type ProductVariant = {
   id: string
   title: string
   sku?: string | null
+  thumbnail?: string | null
   inventory_quantity?: number
   allow_backorder?: boolean
   manage_inventory?: boolean
