@@ -233,12 +233,11 @@ export default async function OrderConfirmationPage({ params }: Props) {
                   {addr.province && <p><span className="text-gray-400">Depto:</span> {addr.province}</p>}
                   {addr.city && <p><span className="text-gray-400">Municipio:</span> {addr.city}</p>}
                   {addr.address_1 && (
-                    <p>
-                      <span className="text-gray-400">Dirección:</span> {addr.address_1}
-                      {zona ? `, Zona ${zona}` : ""}
-                    </p>
+                    <p><span className="text-gray-400">Dirección:</span> {addr.address_1}</p>
                   )}
-                  {aldea && <p><span className="text-gray-400">Colonia/Barrio:</span> {aldea}</p>}
+                  {(addr.address_2 || aldea) && (
+                    <p><span className="text-gray-400">Colonia/Barrio:</span> {addr.address_2 || aldea}</p>
+                  )}
                   {referencia && <p><span className="text-gray-400">Referencia:</span> {referencia}</p>}
                 </div>
               </div>

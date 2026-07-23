@@ -87,7 +87,10 @@ export default function CheckoutPage() {
         shipping_address: {
           first_name: address.first_name,
           last_name: address.last_name,
-          address_1: address.direccion,
+          address_1: address.zona
+            ? `${address.direccion}, Zona ${address.zona}`
+            : address.direccion,
+          address_2: address.aldea || null,
           city: address.municipio,
           province: address.departamento,
           phone: address.phone,
