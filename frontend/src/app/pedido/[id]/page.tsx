@@ -213,21 +213,29 @@ export default async function OrderConfirmationPage({ params }: Props) {
           </p>
           {(() => {
             const addr = order.shipping_address
-            const meta = (addr.metadata ?? {}) as Record<string, string | null>
-            const zona = meta.zona
-            const aldea = meta.aldea
-            const referencia = meta.referencia
-            const nit = meta.nit
+            const addrMeta = (addr.metadata ?? {}) as Record<string, string | null>
+            const orderMeta = (order.metadata ?? {}) as Record<string, string | null>
+            const aldea = addrMeta.aldea
+            const referencia = orderMeta.referencia ?? addrMeta.referencia
+            const nit = orderMeta.nit ?? addrMeta.nit
+            const nombreFactura = orderMeta.nombre_factura
+            const telefono2 = orderMeta.telefono_2
             return (
               <div className="text-sm text-gray-600 space-y-1">
                 <p className="font-medium text-gray-800">
                   {addr.first_name} {addr.last_name}
                 </p>
                 {addr.phone && (
-                  <p><span className="text-gray-400">Tel:</span> {addr.phone}</p>
+                  <p><span className="text-gray-400">Tel 1:</span> {addr.phone}</p>
+                )}
+                {telefono2 && (
+                  <p><span className="text-gray-400">Tel 2:</span> {telefono2}</p>
                 )}
                 {nit && (
-                  <p><span className="text-gray-400">NIT:</span> {nit}</p>
+                  <p><span className="text-gray-400">NIT/DPI:</span> {nit}</p>
+                )}
+                {nombreFactura && (
+                  <p><span className="text-gray-400">Factura a:</span> {nombreFactura}</p>
                 )}
                 <div className="pt-1 border-t border-gray-100 space-y-0.5">
                   {addr.province && <p><span className="text-gray-400">Depto:</span> {addr.province}</p>}

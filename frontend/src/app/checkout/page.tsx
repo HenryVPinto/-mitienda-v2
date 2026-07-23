@@ -20,7 +20,9 @@ type AddressForm = {
   last_name: string
   email: string
   phone: string
+  phone2: string
   nit: string
+  nombre_factura: string
   departamento: string
   municipio: string
   direccion: string
@@ -40,7 +42,8 @@ type BankAccount = {
 }
 
 const EMPTY_ADDRESS: AddressForm = {
-  first_name: "", last_name: "", email: "", phone: "", nit: "",
+  first_name: "", last_name: "", email: "", phone: "", phone2: "",
+  nit: "", nombre_factura: "",
   departamento: "", municipio: "", direccion: "", zona: "", aldea: "", referencia: "",
 }
 
@@ -174,6 +177,8 @@ export default function CheckoutPage() {
         metadata: {
           payment_method: selectedPayment,
           nit: address.nit || "CF",
+          nombre_factura: address.nombre_factura || null,
+          telefono_2: address.phone2 || null,
           referencia: address.referencia || null,
         },
       })
@@ -243,19 +248,29 @@ export default function CheckoutPage() {
               <Input required autoComplete="family-name" value={address.last_name} onChange={(e) => setAddress((a) => ({ ...a, last_name: e.target.value }))} />
             </div>
           </div>
+          <div>
+            <label className="text-sm text-gray-600 mb-1 block">Correo electrónico</label>
+            <Input required type="email" autoComplete="email" value={address.email} onChange={(e) => setAddress((a) => ({ ...a, email: e.target.value }))} />
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm text-gray-600 mb-1 block">Correo electrónico</label>
-              <Input required type="email" autoComplete="email" value={address.email} onChange={(e) => setAddress((a) => ({ ...a, email: e.target.value }))} />
-            </div>
-            <div>
-              <label className="text-sm text-gray-600 mb-1 block">Teléfono</label>
+              <label className="text-sm text-gray-600 mb-1 block">Teléfono 1</label>
               <Input required type="tel" autoComplete="tel" placeholder="5000-0000" value={address.phone} onChange={(e) => setAddress((a) => ({ ...a, phone: e.target.value }))} />
             </div>
+            <div>
+              <label className="text-sm text-gray-600 mb-1 block">Teléfono 2 <span className="text-gray-400 font-normal">(opcional)</span></label>
+              <Input type="tel" autoComplete="tel" placeholder="5000-0000" value={address.phone2} onChange={(e) => setAddress((a) => ({ ...a, phone2: e.target.value }))} />
+            </div>
           </div>
-          <div>
-            <label className="text-sm text-gray-600 mb-1 block">NIT <span className="text-gray-400 font-normal">(o CF si no tienes)</span></label>
-            <Input autoComplete="off" placeholder="Ej: 12345678-9 o CF" maxLength={20} value={address.nit} onChange={(e) => setAddress((a) => ({ ...a, nit: e.target.value }))} />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm text-gray-600 mb-1 block">NIT ó DPI <span className="text-gray-400 font-normal">(CF si no tienes)</span></label>
+              <Input autoComplete="off" placeholder="Ej: 12345678-9 o CF" maxLength={20} value={address.nit} onChange={(e) => setAddress((a) => ({ ...a, nit: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-sm text-gray-600 mb-1 block">Nombre para factura</label>
+              <Input autoComplete="off" placeholder="Nombre completo o razón social" maxLength={80} value={address.nombre_factura} onChange={(e) => setAddress((a) => ({ ...a, nombre_factura: e.target.value }))} />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
