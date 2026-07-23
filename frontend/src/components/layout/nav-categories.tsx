@@ -1,7 +1,6 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { ChevronDown, LayoutGrid } from "lucide-react"
 import type { Category } from "@/lib/types"
@@ -12,7 +11,6 @@ type Props = {
 
 export function NavCategories({ categories }: Props) {
   const [open, setOpen] = useState(false)
-  const router = useRouter()
 
   return (
     <nav className="bg-primary text-white">
@@ -24,7 +22,7 @@ export function NavCategories({ categories }: Props) {
           onMouseLeave={() => setOpen(false)}
         >
           <button
-            onClick={() => router.push("/catalogo")}
+            onClick={() => setOpen((o) => !o)}
             className="flex items-center gap-2 bg-primary-foreground/10 hover:bg-primary-foreground/20 px-3 h-10 font-medium transition-colors"
           >
             <LayoutGrid className="w-4 h-4" />
@@ -36,6 +34,7 @@ export function NavCategories({ categories }: Props) {
             <div className="absolute top-full left-0 bg-white text-gray-800 shadow-xl rounded-b-lg w-56 z-50 py-2">
               <Link
                 href="/catalogo"
+                onClick={() => setOpen(false)}
                 className="flex items-center px-4 py-2 hover:bg-gray-50 hover:text-primary text-sm font-medium border-b border-gray-100 mb-1"
               >
                 Ver todo el catálogo
@@ -44,6 +43,7 @@ export function NavCategories({ categories }: Props) {
                 <Link
                   key={cat.id}
                   href={`/categoria/${cat.handle}`}
+                  onClick={() => setOpen(false)}
                   className="flex items-center px-4 py-2 hover:bg-gray-50 hover:text-primary text-sm"
                 >
                   {cat.name}
