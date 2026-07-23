@@ -138,7 +138,7 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
       `[mt-fulfillment][weight] totalWeightLbs=${totalWeightLbs.toFixed(4)} totalItems=${totalQty} cartTotalQ=${cartTotalQ}`
     )
     console.log(
-      `[mt-fulfillment][rule] name="${rule.name}" flat_rate=${rule.flat_rate} threshold_lbs=${rule.weight_threshold_lbs} rate_per_lb=${rule.rate_per_lb} min_items=${rule.min_item_quantity}`
+      `[mt-fulfillment][rule] name="${rule.name}" flat_rate=${rule.flat_rate} free_above=${rule.free_above_amount} threshold_lbs=${rule.weight_threshold_lbs} rate_per_lb=${rule.rate_per_lb} min_items=${rule.min_item_quantity} cartTotalQ=${cartTotalQ} isWholesale=${isWholesaleCart}`
     )
 
     const shippingContext: ShippingContext = {

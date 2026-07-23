@@ -117,7 +117,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
         const medusaId = ruleToMedusaId.get(rule.id)
         if (!medusaId) { console.log(`[mt-shipping-options][WARN] rule "${rule.name}" no tiene Medusa ID — no se incluirá`); return null }
         const amount = calcShippingAmount(rule, context)
-        console.log(`[mt-shipping-options][result] rule="${rule.name}" flat_rate=${rule.flat_rate} threshold=${rule.weight_threshold_lbs} rate_per_lb=${rule.rate_per_lb} min_items=${rule.min_item_quantity} → amount=${amount}`)
+        console.log(`[mt-shipping-options][result] rule="${rule.name}" flat_rate=${rule.flat_rate} free_above=${rule.free_above_amount} threshold=${rule.weight_threshold_lbs} rate_per_lb=${rule.rate_per_lb} min_items=${rule.min_item_quantity} → amount=${amount}`)
         return { id: medusaId, rule_id: rule.id, name: rule.name, amount, provider_id: "mt-fulfillment" }
       })
       .filter(Boolean)
