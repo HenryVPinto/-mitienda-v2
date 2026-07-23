@@ -102,7 +102,10 @@ export async function removePromoCode(
   cartId: string,
   code: string
 ): Promise<Cart> {
-  await storeDelete(`/store/carts/${cartId}/promotions/${code}`)
+  await storeDelete(
+    `/store/carts/${cartId}/promotions`,
+    { promo_codes: [code.trim().toUpperCase()] }
+  )
   const data = await storeGet<{ cart: Cart }>(
     `/store/carts/${cartId}`,
     { fields: PRODUCT_FIELDS },

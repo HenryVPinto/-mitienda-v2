@@ -76,11 +76,16 @@ export async function storePatch<T>(path: string, body: unknown): Promise<T> {
   return res.json()
 }
 
-export async function storeDelete(path: string): Promise<void> {
+export async function storeDelete(path: string, body?: unknown): Promise<void> {
   const res = await fetch(`${BASE}${path}`, {
     method: "DELETE",
     headers: storeHeaders(),
+    body: body !== undefined ? JSON.stringify(body) : undefined,
     cache: "no-store",
   })
-  if (!res.ok) throw new Error(`${res.status} ${path}`)
+  if (!res.ok) {
+    let msg = `${res.status} ${path}`
+    try { const e = await res.json(); msg = e.message ?? msg } catch { /* ignore */ }
+    throw new Error(msg)
+  }
 }
