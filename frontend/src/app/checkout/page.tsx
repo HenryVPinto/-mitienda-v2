@@ -171,7 +171,11 @@ export default function CheckoutPage() {
     setError("")
     try {
       await storePost(`/store/carts/${cartId}`, {
-        metadata: { payment_method: selectedPayment },
+        metadata: {
+          payment_method: selectedPayment,
+          nit: address.nit || "CF",
+          referencia: address.referencia || null,
+        },
       })
 
       // Aplicar precios de mayoreo justo antes de complete (después del PATCH
