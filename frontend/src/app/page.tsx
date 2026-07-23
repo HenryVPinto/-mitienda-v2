@@ -246,61 +246,7 @@ export default async function HomePage() {
           </section>
         )}
 
-        {/* Ofertas destacadas */}
-        <section>
-          <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <span className="w-1 h-5 bg-primary rounded-full inline-block" />
-            Ofertas destacadas
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {promoCards.length > 0
-              ? promoCards.map((card) => (
-                  <Link
-                    key={card.id}
-                    href={card.link_url ?? "/catalogo"}
-                    className="relative overflow-hidden rounded-xl text-white hover:opacity-90 transition-opacity min-h-[160px] flex flex-col justify-end"
-                  >
-                    {/* Imagen de fondo */}
-                    <Image
-                      src={card.image_url}
-                      alt={card.title}
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                    />
-                    {/* Overlay degradado */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
-                    {/* Contenido */}
-                    <div className="relative z-10 p-5">
-                      <p className="text-xs uppercase tracking-wide opacity-80 mb-1">Promoción</p>
-                      <h3 className="font-bold text-lg leading-tight">{card.title}</h3>
-                      {card.subtitle && <p className="text-sm opacity-80 mt-1">{card.subtitle}</p>}
-                      <div className="mt-3">
-                        <span className="inline-block bg-white/20 text-white text-xs font-medium px-3 py-1.5 rounded-md">
-                          Ver más
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
-                ))
-              : FALLBACK_PROMO.map((card) => (
-                  <Link
-                    key={card.title}
-                    href={card.href}
-                    className={`${card.color} text-white rounded-xl p-5 hover:opacity-90 transition-opacity`}
-                  >
-                    <p className="text-xs uppercase tracking-wide opacity-80 mb-1">Promoción</p>
-                    <h3 className="font-bold text-lg leading-tight">{card.title}</h3>
-                    <p className="text-sm opacity-80 mt-1">{card.subtitle}</p>
-                    <div className="mt-4">
-                      <span className="inline-block bg-white/20 text-white text-xs font-medium px-3 py-1.5 rounded-md transition-colors">
-                        Ver más
-                      </span>
-                    </div>
-                  </Link>
-                ))}
-          </div>
-        </section>
+        {/* Ofertas destacadas — oculto temporalmente */}
       </div>
     </div>
   )

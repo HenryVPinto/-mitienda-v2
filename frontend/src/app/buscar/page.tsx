@@ -13,12 +13,41 @@ const FIELDS =
   "id,title,handle,thumbnail,images.*,variants.id,variants.prices.*,variants.calculated_price.*,variants.metadata,mt_brand.*,mt_vendor.*"
 
 async function searchProducts(query: string, page: number) {
+  const offset = (page - 1) * LIMIT
+
+  // 1. Búsqueda amplia custom: OR por palabras en título/descripción/handle
+  try {
+    const broad = await storeGet<{ products: { id: string; handle: string }[]; count: number }>(
+      "/store/mt-search",
+      { q: query, limit: String(LIMIT), offset: String(offset) }
+    )
+    if (broad.products.length > 0 || broad.count > 0) {
+      // Enriquecer con precios e imágenes usando los handles encontrados
+      const regionId = await getDefaultRegionId()
+      const handles = broad.products.map((p) => p.handle)
+      const params: Record<string, string | string[]> = {
+        "handle[]": handles,
+        limit: String(LIMIT),
+        fields: FIELDS,
+      }
+      if (regionId) params.region_id = regionId
+      const rich = await storeGet<{ products: Product[] }>("/store/products", params as Record<string, string>)
+      // Preservar el orden de la búsqueda amplia
+      const byHandle = new Map((rich.products ?? []).map((p) => [p.handle, p]))
+      const ordered = handles.map((h) => byHandle.get(h)).filter(Boolean) as Product[]
+      return { products: ordered, count: broad.count }
+    }
+  } catch {
+    // fallback al buscador nativo si el endpoint custom falla
+  }
+
+  // 2. Fallback: buscador nativo de Medusa
   try {
     const regionId = await getDefaultRegionId()
     const params: Record<string, string> = {
       q: query,
       limit: String(LIMIT),
-      offset: String((page - 1) * LIMIT),
+      offset: String(offset),
       fields: FIELDS,
     }
     if (regionId) params.region_id = regionId
