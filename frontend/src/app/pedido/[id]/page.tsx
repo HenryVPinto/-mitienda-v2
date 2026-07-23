@@ -209,16 +209,41 @@ export default async function OrderConfirmationPage({ params }: Props) {
         <div className="bg-white border border-gray-200 rounded-xl px-5 py-4 mb-4">
           <p className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
             <MapPin className="w-4 h-4 text-primary" />
-            Dirección de entrega
+            Dirección de envío
           </p>
-          <div className="text-sm text-gray-600 space-y-0.5">
-            <p className="font-medium text-gray-800">
-              {order.shipping_address.first_name} {order.shipping_address.last_name}
-            </p>
-            <p>{order.shipping_address.address_1}</p>
-            <p>{order.shipping_address.city}, Guatemala</p>
-            {order.shipping_address.phone && <p>Tel: {order.shipping_address.phone}</p>}
-          </div>
+          {(() => {
+            const addr = order.shipping_address
+            const meta = (addr.metadata ?? {}) as Record<string, string | null>
+            const zona = meta.zona
+            const aldea = meta.aldea
+            const referencia = meta.referencia
+            const nit = meta.nit
+            return (
+              <div className="text-sm text-gray-600 space-y-1">
+                <p className="font-medium text-gray-800">
+                  {addr.first_name} {addr.last_name}
+                </p>
+                {addr.phone && (
+                  <p><span className="text-gray-400">Tel:</span> {addr.phone}</p>
+                )}
+                {nit && (
+                  <p><span className="text-gray-400">NIT:</span> {nit}</p>
+                )}
+                <div className="pt-1 border-t border-gray-100 space-y-0.5">
+                  {addr.province && <p><span className="text-gray-400">Depto:</span> {addr.province}</p>}
+                  {addr.city && <p><span className="text-gray-400">Municipio:</span> {addr.city}</p>}
+                  {addr.address_1 && (
+                    <p>
+                      <span className="text-gray-400">Dirección:</span> {addr.address_1}
+                      {zona ? `, Zona ${zona}` : ""}
+                    </p>
+                  )}
+                  {aldea && <p><span className="text-gray-400">Colonia/Barrio:</span> {aldea}</p>}
+                  {referencia && <p><span className="text-gray-400">Referencia:</span> {referencia}</p>}
+                </div>
+              </div>
+            )
+          })()}
         </div>
       )}
 

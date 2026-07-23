@@ -158,9 +158,12 @@ export type Address = {
   first_name?: string
   last_name?: string
   address_1?: string
+  address_2?: string
   city?: string
+  province?: string
   phone?: string
   country_code?: string
+  metadata?: Record<string, unknown> | null
 }
 
 export type ShippingOption = {
