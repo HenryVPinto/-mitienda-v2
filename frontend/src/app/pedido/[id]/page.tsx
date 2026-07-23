@@ -218,7 +218,6 @@ export default async function OrderConfirmationPage({ params }: Props) {
             const aldea = addrMeta.aldea
             const referencia = orderMeta.referencia ?? addrMeta.referencia
             const nit = orderMeta.nit ?? addrMeta.nit
-            const nombreFactura = orderMeta.nombre_factura
             const telefono2 = orderMeta.telefono_2
             return (
               <div className="text-sm text-gray-600 space-y-1">
@@ -233,9 +232,6 @@ export default async function OrderConfirmationPage({ params }: Props) {
                 )}
                 {nit && (
                   <p><span className="text-gray-400">NIT/DPI:</span> {nit}</p>
-                )}
-                {nombreFactura && (
-                  <p><span className="text-gray-400">Factura a:</span> {nombreFactura}</p>
                 )}
                 <div className="pt-1 border-t border-gray-100 space-y-0.5">
                   {addr.province && <p><span className="text-gray-400">Depto:</span> {addr.province}</p>}
