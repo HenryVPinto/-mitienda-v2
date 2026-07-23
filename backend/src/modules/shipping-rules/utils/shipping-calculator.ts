@@ -237,6 +237,7 @@ export function calcTotalWeightLbs(items: CartItemWeight[]): number {
 
 /**
  * Selecciona las reglas de envío aplicables al carrito con lógica exclusiva:
+ *   - Solo si el carrito es de mayoreo (isWholesaleCart) se evalúan reglas de mayoreo.
  *   - Si una regla de mayoreo aplica → retorna solo esa regla (bloquea las estándar).
  *   - Si no hay mayoreo → retorna todas las reglas estándar aplicables.
  *
@@ -246,12 +247,13 @@ export function selectApplicableRules(
   rules: ShippingRuleData[],
   context: ShippingContext
 ): ShippingRuleData[] {
-  const wholesaleRule = rules.find((rule) => {
-    const ev = getEvaluator(rule)
-    return ev.type === "wholesale" && ev.applies(rule, context)
-  })
-
-  if (wholesaleRule) return [wholesaleRule]
+  if (context.isWholesaleCart) {
+    const wholesaleRule = rules.find((rule) => {
+      const ev = getEvaluator(rule)
+      return ev.type === "wholesale" && ev.applies(rule, context)
+    })
+    if (wholesaleRule) return [wholesaleRule]
+  }
 
   return rules.filter((rule) => {
     const ev = getEvaluator(rule)
