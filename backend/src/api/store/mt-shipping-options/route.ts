@@ -49,12 +49,13 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     }
 
     // 2. Totales del carrito
-    // unit_price en cart_line_item está en centavos (ej. Q140 → 14000)
-    const cartTotalCents = itemRows.reduce(
+    // unit_price en cart_line_item está en QUETZALES (ej. Q350 → 350), no en centavos
+    const cartTotalQ = itemRows.reduce(
       (sum: number, r: ItemRow) => sum + (Number(r.unit_price) || 0) * (Number(r.quantity) || 0),
       0
     )
-    const cartTotalQ = cartTotalCents / 100  // quetzales para el calculador
+    // Para el filtro SQL (min/max_order_amount en centavos en DB), convertir a centavos
+    const cartTotalCents = Math.round(cartTotalQ * 100)
     const totalItems = itemRows.reduce(
       (sum: number, r: ItemRow) => sum + (Number(r.quantity) || 0),
       0

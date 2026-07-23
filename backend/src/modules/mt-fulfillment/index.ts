@@ -75,70 +75,87 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
       return { calculated_amount: 0, is_calculated_price_tax_inclusive: false }
     }
 
-    // Sin cartId no podemos calcular — devolver tarifa base como fallback
-    if (!cartId) {
-      console.warn("[mt-fulfillment] calculatePrice llamado sin cartId en context")
+    // Medusa pasa los items del carrito directamente en el contexto.
+    // unit_price está en quetzales (ej. Q350 → 350), NO en centavos.
+    type CtxItem = {
+      unit_price?: number
+      quantity?: number
+      variant_id?: string
+      metadata?: Record<string, unknown> | null
+    }
+    const ctxItems = ((context as unknown as Record<string, unknown>).items as CtxItem[] | undefined) ?? []
+
+    // Si el contexto no trae items, intentar leer del cart en DB como fallback
+    let cartTotalQ: number
+    let totalQty: number
+    let isWholesaleCart: boolean
+    let variantIds: string[]
+
+    if (ctxItems.length > 0) {
+      // unit_price en quetzales — sin división
+      cartTotalQ = ctxItems.reduce(
+        (sum, i) => sum + (Number(i.unit_price) || 0) * (Number(i.quantity) || 0), 0
+      )
+      totalQty = ctxItems.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0)
+      isWholesaleCart = ctxItems.some((i) => {
+        const tiers = (i.metadata?.tier_rules as { min_quantity: number }[] | undefined) ?? []
+        return tiers.some((t) => Number(i.quantity) >= t.min_quantity)
+      })
+      variantIds = ctxItems.map((i) => i.variant_id).filter(Boolean) as string[]
+    } else if (cartId) {
+      // Fallback: leer del cart en DB (unit_price en quetzales)
+      type ItemRow = {
+        unit_price: string | number; quantity: string | number
+        variant_id: string | null
+        item_metadata: { tier_rules?: { min_quantity: number }[] } | null
+      }
+      const { rows: dbItems } = await this.pool.query<ItemRow>(
+        `SELECT COALESCE(cli.unit_price,0) AS unit_price, COALESCE(cli.quantity,0) AS quantity,
+                cli.variant_id, cli.metadata AS item_metadata
+         FROM cart_line_item cli WHERE cli.cart_id = $1 AND cli.deleted_at IS NULL`,
+        [cartId]
+      )
+      cartTotalQ = dbItems.reduce(
+        (sum, r) => sum + (Number(r.unit_price) || 0) * (Number(r.quantity) || 0), 0
+      )
+      totalQty = dbItems.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+      isWholesaleCart = dbItems.some((r) => {
+        const tiers = r.item_metadata?.tier_rules ?? []
+        return tiers.some((t) => Number(r.quantity) >= t.min_quantity)
+      })
+      variantIds = dbItems.map((r) => r.variant_id).filter(Boolean) as string[]
+    } else {
+      console.warn("[mt-fulfillment] calculatePrice sin items en contexto ni cartId")
       const fallback = (rule.flat_rate ?? 0) / 100
       return { calculated_amount: fallback, is_calculated_price_tax_inclusive: false }
     }
 
-    // Leer items directamente desde la DB — misma lógica que /store/mt-shipping-options
-    // unit_price en cart_line_item está en centavos (ej. Q140 → 14000)
-    type ItemRow = {
-      unit_price: string | number
-      quantity: string | number
-      weight_raw: string | number
-      variant_id: string | null
-      item_metadata: { tier_rules?: { min_quantity: number; discount_percentage: number }[] } | null
-      weight_unit: string | null
-    }
+    // Pesos por variante desde la DB
+    type WeightRow = { variant_id: string; weight_raw: string | number; weight_unit: string | null }
+    const weightRows = variantIds.length > 0
+      ? (await this.pool.query<WeightRow>(
+          `SELECT pv.id AS variant_id,
+                  COALESCE(pv.weight, p.weight, 0) AS weight_raw,
+                  COALESCE(pv.metadata->>'weight_unit', p.metadata->>'weight_unit') AS weight_unit
+           FROM product_variant pv LEFT JOIN product p ON p.id = pv.product_id
+           WHERE pv.id = ANY($1)`,
+          [variantIds]
+        )).rows
+      : []
 
-    const { rows: itemRows } = await this.pool.query<ItemRow>(
-      `SELECT
-         COALESCE(cli.unit_price, 0)  AS unit_price,
-         COALESCE(cli.quantity,   0)  AS quantity,
-         COALESCE(pv.weight, p.weight, 0)  AS weight_raw,
-         cli.variant_id,
-         cli.metadata                 AS item_metadata,
-         COALESCE(
-           pv.metadata->>'weight_unit',
-           p.metadata->>'weight_unit'
-         )                            AS weight_unit
-       FROM  cart_line_item cli
-       LEFT JOIN product_variant pv ON pv.id = cli.variant_id
-       LEFT JOIN product p           ON p.id  = pv.product_id
-       WHERE cli.cart_id = $1 AND cli.deleted_at IS NULL`,
-      [cartId]
-    )
+    const weightMap = new Map(weightRows.map((r) => [r.variant_id, r]))
 
-    const cartTotalCents = itemRows.reduce(
-      (sum, r) => sum + (Number(r.unit_price) || 0) * (Number(r.quantity) || 0),
-      0
-    )
-    const cartTotalQ  = cartTotalCents / 100
-    const totalQty    = itemRows.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
-
-    const isWholesaleCart = itemRows.some((r) => {
-      const tiers = r.item_metadata?.tier_rules ?? []
-      return tiers.some((t) => Number(r.quantity) >= t.min_quantity)
-    })
-
-    const weightItems: CartItemWeight[] = itemRows.map((r) => {
-      const weightRaw  = Number(r.weight_raw) || 0
-      const weightUnit = r.weight_unit ?? "g"
-      const qty        = Number(r.quantity) || 0
-      console.log(
-        `[mt-fulfillment][weight] variant=${r.variant_id} raw=${weightRaw} unit=${weightUnit} qty=${qty} lineWeightRaw=${weightRaw * qty}`
-      )
-      return { weightRaw, weightUnit, quantity: qty, variantId: r.variant_id ?? undefined }
+    const weightItems: CartItemWeight[] = (ctxItems.length > 0 ? ctxItems : []).map((i) => {
+      const w = weightMap.get(i.variant_id ?? "")
+      const weightRaw  = Number(w?.weight_raw) || 0
+      const weightUnit = w?.weight_unit ?? "g"
+      const qty = Number(i.quantity) || 0
+      return { weightRaw, weightUnit, quantity: qty, variantId: i.variant_id }
     })
 
     const totalWeightLbs = calcTotalWeightLbs(weightItems)
     console.log(
-      `[mt-fulfillment][weight] totalWeightLbs=${totalWeightLbs.toFixed(4)} totalItems=${totalQty} cartTotalQ=${cartTotalQ}`
-    )
-    console.log(
-      `[mt-fulfillment][rule] name="${rule.name}" flat_rate=${rule.flat_rate} free_above=${rule.free_above_amount} threshold_lbs=${rule.weight_threshold_lbs} rate_per_lb=${rule.rate_per_lb} min_items=${rule.min_item_quantity} cartTotalQ=${cartTotalQ} isWholesale=${isWholesaleCart}`
+      `[mt-fulfillment][rule] name="${rule.name}" flat_rate=${rule.flat_rate} free_above=${rule.free_above_amount} cartTotalQ=${cartTotalQ} totalItems=${totalQty} totalWeightLbs=${totalWeightLbs.toFixed(4)} isWholesale=${isWholesaleCart} ctxItems=${ctxItems.length}`
     )
 
     const shippingContext: ShippingContext = {
