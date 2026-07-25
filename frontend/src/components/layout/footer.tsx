@@ -65,8 +65,8 @@ export async function Footer() {
           <h3 className="text-white font-semibold mb-4">Servicio al Cliente</h3>
           <ul className="space-y-2 text-sm">
             <li><Link href="/faq" className="hover:text-white transition-colors">Preguntas frecuentes</Link></li>
-            <li><Link href="/envios" className="hover:text-white transition-colors">Envíos y entregas</Link></li>
-            <li><Link href="/terminos" className="hover:text-white transition-colors">Términos y Condiciones</Link></li>
+            <li><Link href="/envios-y-entregas" className="hover:text-white transition-colors">Envíos y entregas</Link></li>
+            <li><Link href="/terminos-y-condiciones" className="hover:text-white transition-colors">Términos y Condiciones</Link></li>
             <li><Link href="/metodos-de-pago" className="hover:text-white transition-colors">Métodos de pago</Link></li>
           </ul>
         </div>
