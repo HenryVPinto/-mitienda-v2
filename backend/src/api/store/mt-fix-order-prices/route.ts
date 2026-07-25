@@ -10,8 +10,11 @@ function toRaw(value: number) {
 }
 
 // POST /store/mt-fix-order-prices
-// Corrige unit_price en order_line_item y totales en order_summary
-// después de que Medusa crea la orden, para reflejar descuentos de mayoreo.
+// 1. Corrige unit_price en order_line_item si Medusa creó la orden con precio original
+//    (cuando mt-apply-wholesale-prices no se aplicó antes de complete).
+// 2. Sincroniza payment/payment_session/payment_collection al total real de la orden,
+//    sin importar si el delta de items es 0 o no. Esto cubre el caso donde el payment
+//    se creó con el precio original (antes de aplicar descuento de mayoreo).
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const { order_id } = req.body as { order_id?: string }
   if (!order_id) {
@@ -19,7 +22,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   }
 
   try {
-    // 1. Leer line items de la orden con su metadata
+    // ── 1. Leer line items de la orden con su metadata ──────────────────────
     const { rows: lineItems } = await pool.query<{
       item_id: string
       unit_price: string | number
@@ -54,11 +57,8 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 
       if (effectivePrice === originalPrice) continue
 
-      // Actualizar order_line_item
       await pool.query(
-        `UPDATE order_line_item
-         SET unit_price = $1, raw_unit_price = $2
-         WHERE id = $3`,
+        `UPDATE order_line_item SET unit_price = $1, raw_unit_price = $2 WHERE id = $3`,
         [effectivePrice, JSON.stringify(toRaw(effectivePrice)), li.item_id]
       )
 
@@ -68,11 +68,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       )
     }
 
-    if (itemsSubtotalDelta === 0) {
-      return res.json({ updated: false, message: "No se requirió corrección de precios" })
-    }
-
-    // 2. Actualizar order_summary.totals con el nuevo total
+    // ── 2. Leer y actualizar order_summary ──────────────────────────────────
     const { rows: summaries } = await pool.query<{
       id: string
       totals: Record<string, unknown>
@@ -80,6 +76,8 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       `SELECT id, totals FROM order_summary WHERE order_id = $1 AND deleted_at IS NULL LIMIT 1`,
       [order_id]
     )
+
+    let correctOrderTotal = 0
 
     if (summaries.length > 0) {
       const summary = summaries[0]
@@ -94,64 +92,94 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 
       const currentTotal  = getRaw("current_order_total")
       const originalTotal = getRaw("original_order_total")
-      const newCurrent    = currentTotal + itemsSubtotalDelta
-      const newOriginal   = originalTotal + itemsSubtotalDelta
       const txTotal       = getRaw("transaction_total")
-      const newPending    = newCurrent - txTotal
 
-      const newTotals = {
-        ...totals,
-        current_order_total:  toRaw(newCurrent),
-        original_order_total: toRaw(newOriginal),
-        accounting_total:     toRaw(newCurrent),
-        pending_difference:   toRaw(newPending),
+      // Aplicar delta a los totales (puede ser 0 si ya estaban bien)
+      const newCurrent  = currentTotal + itemsSubtotalDelta
+      const newOriginal = originalTotal + itemsSubtotalDelta
+      const newPending  = newCurrent - txTotal
+
+      correctOrderTotal = newCurrent
+
+      if (itemsSubtotalDelta !== 0) {
+        const newTotals = {
+          ...totals,
+          current_order_total:  toRaw(newCurrent),
+          original_order_total: toRaw(newOriginal),
+          accounting_total:     toRaw(newCurrent),
+          pending_difference:   toRaw(newPending),
+        }
+        await pool.query(
+          `UPDATE order_summary SET totals = $1 WHERE id = $2`,
+          [JSON.stringify(newTotals), summary.id]
+        )
+        console.log(
+          `[mt-fix-order-prices] order=${order_id} total ${currentTotal}→${newCurrent} (delta=${itemsSubtotalDelta})`
+        )
+      } else {
+        console.log(
+          `[mt-fix-order-prices] order=${order_id} items ya correctos, total correcto=${newCurrent}`
+        )
+      }
+    }
+
+    // ── 3. Sincronizar payment al total real de la orden ────────────────────
+    // Busca vía payment_collection (más confiable que payment.order_id directo,
+    // que a veces no está seteado en el momento que este endpoint se llama).
+    if (correctOrderTotal > 0) {
+      const { rows: payments } = await pool.query<{
+        payment_id: string
+        payment_session_id: string | null
+        payment_collection_id: string
+        current_amount: string | number
+      }>(
+        `SELECT p.id AS payment_id,
+                p.payment_session_id,
+                p.payment_collection_id,
+                p.amount AS current_amount
+         FROM payment p
+         JOIN payment_collection pc ON pc.id = p.payment_collection_id
+         WHERE pc.order_id = $1
+           AND p.deleted_at IS NULL
+           AND pc.deleted_at IS NULL`,
+        [order_id]
+      )
+
+      for (const p of payments) {
+        const currentAmount = Number(p.current_amount)
+        if (currentAmount === correctOrderTotal) {
+          console.log(
+            `[mt-fix-order-prices] payment=${p.payment_id} ya está en ${currentAmount}, sin cambio`
+          )
+          continue
+        }
+
+        await pool.query(
+          `UPDATE payment SET amount = $1, raw_amount = $2 WHERE id = $3`,
+          [correctOrderTotal, JSON.stringify(toRaw(correctOrderTotal)), p.payment_id]
+        )
+        if (p.payment_session_id) {
+          await pool.query(
+            `UPDATE payment_session SET amount = $1, raw_amount = $2 WHERE id = $3`,
+            [correctOrderTotal, JSON.stringify(toRaw(correctOrderTotal)), p.payment_session_id]
+          )
+        }
+        await pool.query(
+          `UPDATE payment_collection SET amount = $1, raw_amount = $2 WHERE id = $3`,
+          [correctOrderTotal, JSON.stringify(toRaw(correctOrderTotal)), p.payment_collection_id]
+        )
+
+        console.log(
+          `[mt-fix-order-prices] payment=${p.payment_id} ${currentAmount}→${correctOrderTotal}`
+        )
       }
 
-      await pool.query(
-        `UPDATE order_summary SET totals = $1 WHERE id = $2`,
-        [JSON.stringify(newTotals), summary.id]
-      )
-
-      console.log(
-        `[mt-fix-order-prices] order=${order_id} total ${currentTotal}→${newCurrent} (delta=${itemsSubtotalDelta})`
-      )
+      if (payments.length === 0) {
+        console.warn(`[mt-fix-order-prices] no se encontraron payments para order=${order_id}`)
+      }
     }
 
-    // 3. Actualizar payment_collection, payment_session y payment
-    const { rows: payments } = await pool.query<{
-      payment_id: string
-      payment_session_id: string
-      payment_collection_id: string
-      amount: string | number
-    }>(
-      `SELECT id AS payment_id, payment_session_id, payment_collection_id, amount
-       FROM payment
-       WHERE order_id = $1 AND deleted_at IS NULL`,
-      [order_id]
-    )
-
-    for (const p of payments) {
-      const newAmount = Number(p.amount) + itemsSubtotalDelta
-
-      await pool.query(
-        `UPDATE payment SET amount = $1, raw_amount = $2 WHERE id = $3`,
-        [newAmount, JSON.stringify(toRaw(newAmount)), p.payment_id]
-      )
-      await pool.query(
-        `UPDATE payment_session SET amount = $1, raw_amount = $2 WHERE id = $3`,
-        [newAmount, JSON.stringify(toRaw(newAmount)), p.payment_session_id]
-      )
-      await pool.query(
-        `UPDATE payment_collection SET amount = $1, raw_amount = $2 WHERE id = $3`,
-        [newAmount, JSON.stringify(toRaw(newAmount)), p.payment_collection_id]
-      )
-
-      console.log(
-        `[mt-fix-order-prices] payment=${p.payment_id} ${Number(p.amount)}→${newAmount}`
-      )
-    }
-
-    res.json({ updated: true, delta: itemsSubtotalDelta })
+    res.json({ updated: true, delta: itemsSubtotalDelta, correctOrderTotal })
   } catch (err) {
     console.error("[mt-fix-order-prices POST]", err)
     res.status(500).json({ message: "Error al corregir precios de la orden" })
