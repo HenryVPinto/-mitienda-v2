@@ -138,15 +138,21 @@ export function ProductDetail({ product, pricingTiers }: Props) {
     ? [{ id: "thumb", url: product.thumbnail }]
     : []
 
-  // Imágenes de la variante activa: toda su galería propia, o su thumbnail como fallback
-  const variantImages: { id: string; url: string }[] =
-    currentVariant?.images?.length
-      ? currentVariant.images
-      : currentVariant?.thumbnail
-      ? [{ id: `thumb-${currentVariant.id}`, url: currentVariant.thumbnail }]
-      : []
+  // Imágenes de la variante activa.
+  // El thumbnail de la variante va primero (imagen principal), seguido del resto de su galería.
+  // Si no hay ni thumbnail ni imágenes, cae a product.images.
+  const variantImages: { id: string; url: string }[] = (() => {
+    const thumb = currentVariant?.thumbnail
+    const imgs = currentVariant?.images ?? []
+    if (thumb) {
+      return [
+        { id: `thumb-${currentVariant?.id}`, url: thumb },
+        ...imgs.filter((img) => img.url !== thumb),
+      ]
+    }
+    return imgs
+  })()
 
-  // Si la variante tiene imágenes propias las mostramos; si no, usamos las del producto
   const galleryImages = variantImages.length > 0 ? variantImages : baseImages
 
   if (process.env.NODE_ENV === "development") {
