@@ -161,6 +161,12 @@ export default function CheckoutPage() {
         await storePost(`/store/payment-collections/${pcId}/payment-sessions`, {
           provider_id: "pp_system_default",
         })
+        // Medusa calcula el monto del payment_collection desde su caché interno
+        // y no ve los cambios SQL de mt-apply-wholesale-prices. Lo corregimos aquí.
+        await storePost("/store/mt-fix-payment-collection", {
+          cart_id: cartId,
+          payment_collection_id: pcId,
+        }).catch(() => {})
       }
 
       setStep(2)
