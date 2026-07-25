@@ -16,7 +16,7 @@ function toRaw(value: number) {
 //    sin importar si el delta de items es 0 o no. Esto cubre el caso donde el payment
 //    se creó con el precio original (antes de aplicar descuento de mayoreo).
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
-  const { order_id } = req.body as { order_id?: string }
+  const { order_id, cart_id } = req.body as { order_id?: string; cart_id?: string }
   if (!order_id) {
     return res.status(400).json({ message: "order_id es requerido" })
   }
@@ -124,25 +124,53 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     }
 
     // ── 3. Sincronizar payment al total real de la orden ────────────────────
-    // Busca vía payment_collection (más confiable que payment.order_id directo,
-    // que a veces no está seteado en el momento que este endpoint se llama).
+    // En Medusa v2, payment_collection se vincula al cart (cart_id), no a la orden.
+    // Primero intentamos con cart_id (pasado desde checkout), como fallback leemos
+    // el cart_id desde la tabla order.
     if (correctOrderTotal > 0) {
+      let effectiveCartId = cart_id
+      if (!effectiveCartId) {
+        const { rows: orderRows } = await pool.query<{ cart_id: string | null }>(
+          `SELECT cart_id FROM "order" WHERE id = $1 LIMIT 1`,
+          [order_id]
+        )
+        effectiveCartId = orderRows[0]?.cart_id ?? undefined
+        if (effectiveCartId) {
+          console.log(`[mt-fix-order-prices] cart_id resuelto desde order: ${effectiveCartId}`)
+        }
+      }
+
+      if (!effectiveCartId) {
+        console.warn(`[mt-fix-order-prices] no se pudo obtener cart_id para order=${order_id}`)
+      }
+
       const { rows: payments } = await pool.query<{
         payment_id: string
         payment_session_id: string | null
         payment_collection_id: string
         current_amount: string | number
       }>(
-        `SELECT p.id AS payment_id,
-                p.payment_session_id,
-                p.payment_collection_id,
-                p.amount AS current_amount
-         FROM payment p
-         JOIN payment_collection pc ON pc.id = p.payment_collection_id
-         WHERE pc.order_id = $1
-           AND p.deleted_at IS NULL
-           AND pc.deleted_at IS NULL`,
-        [order_id]
+        effectiveCartId
+          ? `SELECT p.id AS payment_id,
+                    p.payment_session_id,
+                    p.payment_collection_id,
+                    p.amount AS current_amount
+             FROM payment p
+             JOIN payment_collection pc ON pc.id = p.payment_collection_id
+             WHERE pc.cart_id = $1
+               AND p.deleted_at IS NULL
+               AND pc.deleted_at IS NULL`
+          : `SELECT p.id AS payment_id,
+                    p.payment_session_id,
+                    p.payment_collection_id,
+                    p.amount AS current_amount
+             FROM payment p
+             JOIN payment_collection pc ON pc.id = p.payment_collection_id
+             JOIN order_payment_collection opc ON opc.payment_collection_id = pc.id
+             WHERE opc.order_id = $1
+               AND p.deleted_at IS NULL
+               AND pc.deleted_at IS NULL`,
+        [effectiveCartId ?? order_id]
       )
 
       for (const p of payments) {

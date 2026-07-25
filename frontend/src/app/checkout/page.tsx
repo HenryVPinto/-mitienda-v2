@@ -198,7 +198,7 @@ export default function CheckoutPage() {
       if (!orderId) throw new Error("No se pudo confirmar el pedido. Intenta de nuevo.")
 
       // Corregir precios en la orden (por si Medusa recalculó al completar)
-      await storePost("/store/mt-fix-order-prices", { order_id: orderId }).catch(() => {})
+      await storePost("/store/mt-fix-order-prices", { order_id: orderId, cart_id: cartId }).catch(() => {})
 
       clearCart()
       router.push(`/pedido/${orderId}`)
