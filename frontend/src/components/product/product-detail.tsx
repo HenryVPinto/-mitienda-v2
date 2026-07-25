@@ -138,15 +138,23 @@ export function ProductDetail({ product, pricingTiers }: Props) {
     ? [{ id: "thumb", url: product.thumbnail }]
     : []
 
-  // Imagen de la variante: primero su galería propia, luego su thumbnail
-  const variantImageUrl =
-    currentVariant?.images?.[0]?.url ??
-    currentVariant?.thumbnail ??
-    null
+  // Imágenes de la variante activa: toda su galería propia, o su thumbnail como fallback
+  const variantImages: { id: string; url: string }[] =
+    currentVariant?.images?.length
+      ? currentVariant.images
+      : currentVariant?.thumbnail
+      ? [{ id: `thumb-${currentVariant.id}`, url: currentVariant.thumbnail }]
+      : []
 
-  const galleryImages = variantImageUrl
-    ? [{ id: `v-${currentVariant?.id}`, url: variantImageUrl }, ...baseImages.filter((img) => img.url !== variantImageUrl)]
-    : baseImages
+  // Si la variante tiene imágenes propias las mostramos; si no, usamos las del producto
+  const galleryImages = variantImages.length > 0 ? variantImages : baseImages
+
+  if (process.env.NODE_ENV === "development") {
+    console.log("[Gallery] variant:", currentVariant?.id, currentVariant?.title)
+    console.log("[Gallery] variant.images:", currentVariant?.images)
+    console.log("[Gallery] variant.thumbnail:", currentVariant?.thumbnail)
+    console.log("[Gallery] galleryImages:", galleryImages)
+  }
 
   function select(optionId: string, value: string) {
     const next = { ...selectedValues, [optionId]: value }
@@ -219,7 +227,7 @@ export function ProductDetail({ product, pricingTiers }: Props) {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <div>
         <ProductGallery
-          key={variantImageUrl ? currentVariant?.id : "static"}
+          key={currentVariant?.id ?? "static"}
           images={galleryImages}
           title={product.title}
         />
