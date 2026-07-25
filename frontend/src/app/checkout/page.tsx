@@ -146,7 +146,12 @@ export default function CheckoutPage() {
       await storePost(`/store/carts/${cartId}/shipping-methods`, { option_id: best.id })
       setAppliedShipping(best)
 
-      // Crear colección de pago
+      // Aplicar precios de mayoreo ANTES de crear el payment session.
+      // El payment_collection toma el total del carrito en este momento,
+      // por lo que los precios deben estar correctos antes de crearlo.
+      await storePost("/store/mt-apply-wholesale-prices", { cart_id: cartId })
+
+      // Crear colección de pago (ahora refleja el precio con descuento mayoreo)
       const pcData = await storePost<{ payment_collection: { id: string } }>(
         "/store/payment-collections",
         { cart_id: cartId }
