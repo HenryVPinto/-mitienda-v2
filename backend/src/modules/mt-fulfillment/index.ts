@@ -75,6 +75,14 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
       return { calculated_amount: 0, is_calculated_price_tax_inclusive: false }
     }
 
+    // Tipo normalizado para items (contexto o DB) — fuente única para totales y pesos
+    type NormalizedItem = {
+      variant_id: string | undefined
+      unit_price: number
+      quantity: number
+      metadata: Record<string, unknown> | null
+    }
+
     // Medusa pasa los items del carrito directamente en el contexto.
     // unit_price está en quetzales (ej. Q350 → 350), NO en centavos.
     type CtxItem = {
@@ -85,27 +93,29 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
     }
     const ctxItems = ((context as unknown as Record<string, unknown>).items as CtxItem[] | undefined) ?? []
 
-    // Si el contexto no trae items, intentar leer del cart en DB como fallback
-    let cartTotalQ: number
-    let totalQty: number
-    let isWholesaleCart: boolean
-    let variantIds: string[]
+    // Log diagnóstico: ver exactamente qué trae Medusa en context.items
+    if (ctxItems.length > 0) {
+      console.log(`[mt-fulfillment][ctx] cartId=${cartId} ctxItems=${ctxItems.length} first_keys=${Object.keys(ctxItems[0] ?? {}).join(",")}`)
+      console.log(`[mt-fulfillment][ctx] first_item variant_id="${ctxItems[0]?.variant_id}" unit_price=${ctxItems[0]?.unit_price} qty=${ctxItems[0]?.quantity}`)
+    }
+
+    // sourceItems: lista normalizada de items — puede venir del contexto o de DB.
+    // CRÍTICO: se usa tanto para los totales como para el cálculo de pesos.
+    let sourceItems: NormalizedItem[]
 
     if (ctxItems.length > 0) {
-      // unit_price en quetzales — sin división
-      cartTotalQ = ctxItems.reduce(
-        (sum, i) => sum + (Number(i.unit_price) || 0) * (Number(i.quantity) || 0), 0
-      )
-      totalQty = ctxItems.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0)
-      isWholesaleCart = ctxItems.some((i) => {
-        const tiers = (i.metadata?.tier_rules as { min_quantity: number }[] | undefined) ?? []
-        return tiers.some((t) => Number(i.quantity) >= t.min_quantity)
-      })
-      variantIds = ctxItems.map((i) => i.variant_id).filter(Boolean) as string[]
+      sourceItems = ctxItems.map((i) => ({
+        variant_id: i.variant_id,
+        unit_price: Number(i.unit_price) || 0,
+        quantity: Number(i.quantity) || 0,
+        metadata: i.metadata ?? null,
+      }))
+      console.log(`[mt-fulfillment][source] usando context.items (${sourceItems.length} items)`)
     } else if (cartId) {
       // Fallback: leer del cart en DB (unit_price en quetzales)
       type ItemRow = {
-        unit_price: string | number; quantity: string | number
+        unit_price: string | number
+        quantity: string | number
         variant_id: string | null
         item_metadata: { tier_rules?: { min_quantity: number }[] } | null
       }
@@ -115,20 +125,27 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
          FROM cart_line_item cli WHERE cli.cart_id = $1 AND cli.deleted_at IS NULL`,
         [cartId]
       )
-      cartTotalQ = dbItems.reduce(
-        (sum, r) => sum + (Number(r.unit_price) || 0) * (Number(r.quantity) || 0), 0
-      )
-      totalQty = dbItems.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
-      isWholesaleCart = dbItems.some((r) => {
-        const tiers = r.item_metadata?.tier_rules ?? []
-        return tiers.some((t) => Number(r.quantity) >= t.min_quantity)
-      })
-      variantIds = dbItems.map((r) => r.variant_id).filter(Boolean) as string[]
+      sourceItems = dbItems.map((r) => ({
+        variant_id: r.variant_id ?? undefined,
+        unit_price: Number(r.unit_price) || 0,
+        quantity: Number(r.quantity) || 0,
+        metadata: r.item_metadata as Record<string, unknown> | null,
+      }))
+      console.log(`[mt-fulfillment][source] usando DB fallback (${sourceItems.length} items, cartId=${cartId})`)
     } else {
       console.warn("[mt-fulfillment] calculatePrice sin items en contexto ni cartId")
       const fallback = (rule.flat_rate ?? 0) / 100
       return { calculated_amount: fallback, is_calculated_price_tax_inclusive: false }
     }
+
+    // Totales del carrito desde sourceItems
+    const cartTotalQ = sourceItems.reduce((sum, i) => sum + i.unit_price * i.quantity, 0)
+    const totalQty = sourceItems.reduce((sum, i) => sum + i.quantity, 0)
+    const isWholesaleCart = sourceItems.some((i) => {
+      const tiers = (i.metadata?.tier_rules as { min_quantity: number }[] | undefined) ?? []
+      return tiers.some((t) => i.quantity >= t.min_quantity)
+    })
+    const variantIds = sourceItems.map((i) => i.variant_id).filter(Boolean) as string[]
 
     // Pesos por variante desde la DB
     type WeightRow = { variant_id: string; weight_raw: string | number; weight_unit: string | null }
@@ -145,12 +162,12 @@ class MtFulfillmentProviderService extends AbstractFulfillmentProviderService {
 
     const weightMap = new Map(weightRows.map((r) => [r.variant_id, r]))
 
-    const weightItems: CartItemWeight[] = (ctxItems.length > 0 ? ctxItems : []).map((i) => {
+    // weightItems construido desde sourceItems — garantiza consistencia con los totales
+    const weightItems: CartItemWeight[] = sourceItems.map((i) => {
       const w = weightMap.get(i.variant_id ?? "")
       const weightRaw  = Number(w?.weight_raw) || 0
       const weightUnit = w?.weight_unit ?? "g"
-      const qty = Number(i.quantity) || 0
-      return { weightRaw, weightUnit, quantity: qty, variantId: i.variant_id }
+      return { weightRaw, weightUnit, quantity: i.quantity, variantId: i.variant_id }
     })
 
     const totalWeightLbs = calcTotalWeightLbs(weightItems)
