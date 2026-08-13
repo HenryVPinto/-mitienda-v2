@@ -1,6 +1,6 @@
 import { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { resend, FROM, STORE_NAME, STORE_URL, formatPrice, emailHeader } from "../lib/resend"
+import { resend, FROM, STORE_NAME, STORE_URL, formatPrice, emailHeader, emailFooter } from "../lib/resend"
 
 export default async function orderPaymentCapturedHandler({
   event: { data },
@@ -63,6 +63,7 @@ export default async function orderPaymentCapturedHandler({
       </table>
       <p>Pronto recibirás tu pedido. ¡Gracias por tu compra!</p>
       <p style="color:#888;font-size:13px;">¿Tienes alguna duda? Escríbenos a <a href="mailto:hola@mitienda.com.gt" style="color:#e63946;">hola@mitienda.com.gt</a></p>
+      ${emailFooter()}
     </body>
     </html>`
 

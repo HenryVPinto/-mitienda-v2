@@ -1,7 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { VENDOR_MODULE } from "../../../modules/vendor"
 import VendorModuleService from "../../../modules/vendor/service"
-import { resend, FROM, ADMIN_EMAIL, STORE_NAME, emailHeader } from "../../../lib/resend"
+import { resend, FROM, ADMIN_EMAIL, STORE_NAME, emailHeader, emailFooter } from "../../../lib/resend"
 
 function toHandle(name: string): string {
   return name
@@ -72,6 +72,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       </div>
       <p>Te contactaremos al correo <strong>${contact_email.trim()}</strong> cuando hayamos revisado tu solicitud.</p>
       <p style="color:#888;font-size:13px;">¿Tienes alguna duda? Escríbenos a <a href="mailto:${ADMIN_EMAIL}" style="color:#e63946;">${ADMIN_EMAIL}</a></p>
+      ${emailFooter()}
     </body>
     </html>`
 

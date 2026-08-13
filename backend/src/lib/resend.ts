@@ -18,6 +18,14 @@ export function emailHeader(): string {
     <hr style="border:none;border-top:1px solid #f0f0f0;margin:0 0 24px;" />`
 }
 
+export function emailFooter(): string {
+  return `
+    <hr style="border:none;border-top:1px solid #f0f0f0;margin:32px 0 12px;" />
+    <p style="text-align:center;font-size:11px;color:#bbb;margin:0;">
+      Desarrollado por <a href="https://www.innovate.gt" style="color:#bbb;text-decoration:none;">INNOVATE</a>
+    </p>`
+}
+
 export function formatPrice(amount: number, currency = "GTQ"): string {
   return `Q${(amount / 100).toFixed(2)}`
 }
