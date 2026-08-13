@@ -229,6 +229,15 @@ export function ProductDetail({ product, pricingTiers }: Props) {
     })
   ) ?? true
 
+  const stockStatus: "in_stock" | "backorder" | "out_of_stock" = (() => {
+    if (!currentVariant) return "in_stock"
+    if (currentVariant.manage_inventory === false) return "in_stock"
+    const qty = currentVariant.inventory_quantity ?? 0
+    if (qty > 0) return "in_stock"
+    if (currentVariant.allow_backorder) return "backorder"
+    return "out_of_stock"
+  })()
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <div>
@@ -275,7 +284,15 @@ export function ProductDetail({ product, pricingTiers }: Props) {
               <span className="text-lg text-gray-400 line-through">{formatGTQ(originalPrice)}</span>
             )}
           </div>
-          <p className="text-xs text-green-600 font-medium">En Stock — Envío 2-3 días</p>
+          {stockStatus === "in_stock" && (
+            <p className="text-xs text-green-600 font-medium">En Stock — Envío 2-3 días</p>
+          )}
+          {stockStatus === "backorder" && (
+            <p className="text-xs text-amber-600 font-medium">Bajo pedido — Consultar disponibilidad</p>
+          )}
+          {stockStatus === "out_of_stock" && (
+            <p className="text-xs text-red-500 font-medium">Agotado</p>
+          )}
         </div>
 
         {/* Tabla de precios por volumen */}
@@ -373,13 +390,18 @@ export function ProductDetail({ product, pricingTiers }: Props) {
         })}
 
         {/* Agregar al carrito */}
-        {currentVariant && (
+        {currentVariant && stockStatus !== "out_of_stock" && (
           <AddToCartButton
             variantId={currentVariant.id}
             basePrice={price}
             tiers={pricingTiers}
             disabled={!variantExists}
           />
+        )}
+        {currentVariant && stockStatus === "out_of_stock" && (
+          <button disabled className="w-full py-3 rounded-lg bg-gray-200 text-gray-400 font-semibold cursor-not-allowed">
+            Agotado
+          </button>
         )}
         {!variantExists && (
           <p className="text-sm text-red-500">Esta combinación no está disponible.</p>
