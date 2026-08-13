@@ -1,7 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { VENDOR_MODULE } from "../../../modules/vendor"
 import VendorModuleService from "../../../modules/vendor/service"
-import { resend, FROM, ADMIN_EMAIL, STORE_NAME } from "../../../lib/resend"
+import { resend, FROM, ADMIN_EMAIL, STORE_NAME, emailHeader } from "../../../lib/resend"
 
 function toHandle(name: string): string {
   return name
@@ -59,9 +59,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     <!DOCTYPE html>
     <html>
     <body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:0 auto;padding:20px;">
-      <div style="text-align:center;margin-bottom:30px;">
-        <h1 style="color:#e63946;margin:0;">${STORE_NAME}</h1>
-      </div>
+      ${emailHeader()}
       <h2>¡Recibimos tu solicitud!</h2>
       <p>Hola <strong>${name.trim()}</strong>,</p>
       <p>Gracias por tu interés en vender en ${STORE_NAME}. Hemos recibido tu solicitud y la revisaremos a la brevedad.</p>

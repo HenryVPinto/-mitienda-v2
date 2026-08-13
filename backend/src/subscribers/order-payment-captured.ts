@@ -1,6 +1,6 @@
 import { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { resend, FROM, STORE_NAME, STORE_URL, formatPrice } from "../lib/resend"
+import { resend, FROM, STORE_NAME, STORE_URL, formatPrice, emailHeader } from "../lib/resend"
 
 export default async function orderPaymentCapturedHandler({
   event: { data },
@@ -35,9 +35,7 @@ export default async function orderPaymentCapturedHandler({
     <!DOCTYPE html>
     <html>
     <body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:0 auto;padding:20px;">
-      <div style="text-align:center;margin-bottom:30px;">
-        <h1 style="color:#e63946;margin:0;">${STORE_NAME}</h1>
-      </div>
+      ${emailHeader()}
       <div style="background:#e8f5e9;border-left:4px solid #4caf50;padding:15px;border-radius:4px;margin-bottom:20px;">
         <h2 style="margin:0;color:#2e7d32;">¡Pago confirmado!</h2>
       </div>
