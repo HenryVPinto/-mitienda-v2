@@ -21,12 +21,19 @@ export default async function orderPlacedHandler({
       "total",
       "items.*",
       "shipping_address.*",
+      "metadata",
     ],
     filters: { id: orderId },
   })
 
   const order = orders[0]
   if (!order) return
+
+  const paymentMethod = (order.metadata as Record<string, unknown>)?.payment_method as string | undefined
+  const paymentLabel =
+    paymentMethod === "bank_transfer" ? "Depósito / Transferencia" :
+    paymentMethod === "visalink" ? "NeoLink / Link de pago" :
+    "Contra entrega"
 
   const items = Array.isArray(order.items) ? order.items : []
   const address = order.shipping_address
@@ -74,6 +81,11 @@ export default async function orderPlacedHandler({
       </div>
 
       <div style="background:#f8f8f8;padding:15px;border-radius:6px;margin:20px 0;">
+        <h3 style="margin:0 0 4px;">Método de pago</h3>
+        <p style="margin:0;">${paymentLabel}</p>
+      </div>
+
+      <div style="background:#f8f8f8;padding:15px;border-radius:6px;margin:20px 0;">
         <h3 style="margin:0 0 8px;">Dirección de entrega</h3>
         <p style="margin:0;">${addressText}</p>
       </div>
@@ -90,6 +102,7 @@ export default async function orderPlacedHandler({
       <h2>Nuevo pedido #${order.display_id}</h2>
       <p><strong>Cliente:</strong> ${order.email}</p>
       <p><strong>Total:</strong> ${formatPrice(order.total)}</p>
+      <p><strong>Método de pago:</strong> ${paymentLabel}</p>
       <p><strong>Dirección:</strong> ${addressText}</p>
       <table style="width:100%;border-collapse:collapse;margin:20px 0;">
         <thead>

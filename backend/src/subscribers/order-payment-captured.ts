@@ -18,12 +18,19 @@ export default async function orderPaymentCapturedHandler({
       "total",
       "items.*",
       "shipping_address.*",
+      "metadata",
     ],
     filters: { id: orderId },
   })
 
   const order = orders[0]
   if (!order) return
+
+  const paymentMethod = (order.metadata as Record<string, unknown>)?.payment_method as string | undefined
+  const paymentLabel =
+    paymentMethod === "bank_transfer" ? "Depósito / Transferencia" :
+    paymentMethod === "visalink" ? "NeoLink / Link de pago" :
+    "Contra entrega"
 
   const items = Array.isArray(order.items) ? order.items : []
   const address = order.shipping_address
@@ -41,6 +48,7 @@ export default async function orderPaymentCapturedHandler({
       </div>
       <p>Tu pago para el pedido <strong>#${order.display_id}</strong> ha sido confirmado.</p>
       <p><strong>Total pagado:</strong> ${formatPrice(order.total)}</p>
+      <p><strong>Método de pago:</strong> ${paymentLabel}</p>
       <p><strong>Dirección de entrega:</strong> ${addressText}</p>
       <table style="width:100%;border-collapse:collapse;margin:20px 0;">
         <tbody>${items
