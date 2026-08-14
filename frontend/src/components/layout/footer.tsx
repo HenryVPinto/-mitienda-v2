@@ -75,7 +75,7 @@ export async function Footer() {
         <div>
           <h3 className="text-white font-semibold mb-4">MiTienda</h3>
           <ul className="space-y-2 text-sm">
-            {pages.map((page) => (
+            {pages.filter((p) => !["terminos-y-condiciones","politicas-de-envios","formas-de-pago"].includes(p.slug)).map((page) => (
               <li key={page.id}>
                 <Link href={`/${page.slug}`} className="hover:text-white transition-colors">
                   {page.title}
