@@ -1,6 +1,6 @@
 import { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { resend, FROM, ADMIN_EMAIL, STORE_NAME, STORE_URL, formatPrice, emailHeader, emailFooter } from "../lib/resend"
+import { resend, FROM, ADMIN_EMAIL, STORE_NAME, STORE_URL, WHATSAPP_NUMBER, formatPrice, emailHeader, emailFooter } from "../lib/resend"
 
 export default async function orderPlacedHandler({
   event: { data },
@@ -91,7 +91,7 @@ export default async function orderPlacedHandler({
       </div>
 
       <p>Te notificaremos cuando tu pedido sea despachado.</p>
-      <p style="color:#888;font-size:13px;">Si tienes dudas escríbenos a <a href="mailto:${ADMIN_EMAIL}" style="color:#e63946;">${ADMIN_EMAIL}</a></p>
+      <p style="color:#888;font-size:13px;">Si tienes dudas escríbenos a <a href="mailto:${ADMIN_EMAIL}" style="color:#e63946;">${ADMIN_EMAIL}</a> o por <a href="https://wa.me/${WHATSAPP_NUMBER}" style="color:#25d366;">WhatsApp</a></p>
       ${emailFooter()}
     </body>
     </html>`

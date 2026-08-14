@@ -7,6 +7,7 @@ export const ADMIN_EMAIL = "hola@mitienda.com.gt"
 export const STORE_NAME = "MiTienda"
 export const STORE_URL = "https://mitienda.com.gt"
 export const LOGO_URL = "https://mitienda.com.gt/logo.png"
+export const WHATSAPP_NUMBER = "50258648118"
 
 export function emailHeader(): string {
   return `
