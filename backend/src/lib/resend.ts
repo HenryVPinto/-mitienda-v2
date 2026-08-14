@@ -27,5 +27,8 @@ export function emailFooter(): string {
 }
 
 export function formatPrice(amount: number, currency = "GTQ"): string {
-  return `Q${(amount / 100).toFixed(2)}`
+  return new Intl.NumberFormat("es-GT", {
+    style: "currency",
+    currency: "GTQ",
+  }).format(amount)
 }
