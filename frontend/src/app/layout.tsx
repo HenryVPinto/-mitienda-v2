@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { Nunito } from "next/font/google"
 import "./globals.css"
+import { Analytics } from "@vercel/analytics/next"
 import { CartProvider } from "@/context/cart-context"
 import { TopBar } from "@/components/layout/top-bar"
 import { Header } from "@/components/layout/header"
@@ -59,6 +60,7 @@ export default async function RootLayout({
             </svg>
           </a>
         </CartProvider>
+        <Analytics />
       </body>
     </html>
   )
