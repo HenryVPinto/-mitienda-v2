@@ -4,6 +4,7 @@ import {
   Badge,
   Button,
   Container,
+  Drawer,
   Heading,
   Input,
   Label,
@@ -660,31 +661,21 @@ const BrandsPage = () => {
         </Table>
       )}
 
-      {/* Panel de catálogos */}
-      {catalogBrandId && catalogBrand && (
-        <div className="border-t border-ui-border-base">
-          <div className="px-6 py-4 flex items-center justify-between bg-ui-bg-subtle">
-            <div>
-              <Heading level="h3">Catálogos PDF — {catalogBrand.name}</Heading>
-              <p className="text-ui-fg-subtle txt-small mt-0.5">{catalogs.length} catálogo{catalogs.length !== 1 ? "s" : ""}</p>
-            </div>
-            <div className="flex items-center gap-x-2">
-              <Button
-                size="small"
-                variant={showCatalogCreate ? "secondary" : "primary"}
-                onClick={() => setShowCatalogCreate((v) => !v)}
-              >
-                {showCatalogCreate ? "Cancelar" : "+ Nuevo catálogo"}
-              </Button>
-              <Button size="small" variant="transparent" onClick={handleCloseCatalogs}>
-                Cerrar
-              </Button>
-            </div>
-          </div>
+      {/* Drawer de catálogos */}
+      <Drawer
+        open={!!catalogBrandId}
+        onOpenChange={(open) => { if (!open) handleCloseCatalogs() }}
+      >
+        <Drawer.Content className="max-w-lg">
+          <Drawer.Header>
+            <Drawer.Title>Catálogos PDF — {catalogBrand?.name}</Drawer.Title>
+          </Drawer.Header>
 
-          {showCatalogCreate && (
-            <div className="px-6 py-4 border-b border-ui-border-base bg-white">
-              <div className="grid grid-cols-2 gap-4 max-w-2xl">
+          <Drawer.Body className="flex flex-col gap-y-4 overflow-y-auto">
+            {/* Formulario nuevo catálogo */}
+            {showCatalogCreate ? (
+              <div className="border border-ui-border-base rounded-lg p-4 flex flex-col gap-y-3 bg-ui-bg-subtle">
+                <Heading level="h3">Nuevo catálogo</Heading>
                 <div className="flex flex-col gap-y-1">
                   <Label size="small">Título *</Label>
                   <Input
@@ -721,7 +712,7 @@ const BrandsPage = () => {
                   <Label size="small">Imagen de portada</Label>
                   <div className="flex items-center gap-x-2">
                     {catalogForm.cover_image_url && (
-                      <img src={catalogForm.cover_image_url} alt="portada" className="h-8 w-8 object-cover rounded border border-ui-border-base" />
+                      <img src={catalogForm.cover_image_url} alt="portada" className="h-10 w-8 object-cover rounded border border-ui-border-base" />
                     )}
                     <input ref={catalogCoverRef} type="file" accept="image/*" className="hidden" onChange={handleCoverChange} />
                     <Button size="small" variant="secondary" isLoading={catalogCoverUploading} onClick={() => catalogCoverRef.current?.click()}>
@@ -729,66 +720,58 @@ const BrandsPage = () => {
                     </Button>
                   </div>
                 </div>
-                <div className="col-span-2 flex justify-end gap-x-2">
+                <div className="flex justify-end gap-x-2 pt-1">
                   <Button size="small" variant="secondary" onClick={() => setShowCatalogCreate(false)}>Cancelar</Button>
                   <Button size="small" isLoading={catalogSubmitting} onClick={handleCreateCatalog}>Guardar catálogo</Button>
                 </div>
               </div>
-            </div>
-          )}
+            ) : null}
 
-          {catalogsLoading ? (
-            <div className="px-6 py-6 text-center text-ui-fg-subtle">Cargando catálogos...</div>
-          ) : catalogs.length === 0 ? (
-            <div className="px-6 py-6 text-center text-ui-fg-subtle">No hay catálogos para esta marca. Agrega el primero.</div>
-          ) : (
-            <Table>
-              <Table.Header>
-                <Table.Row>
-                  <Table.HeaderCell>Portada</Table.HeaderCell>
-                  <Table.HeaderCell>Título</Table.HeaderCell>
-                  <Table.HeaderCell>Descripción</Table.HeaderCell>
-                  <Table.HeaderCell>PDF</Table.HeaderCell>
-                  <Table.HeaderCell>Estado</Table.HeaderCell>
-                  <Table.HeaderCell />
-                </Table.Row>
-              </Table.Header>
-              <Table.Body>
+            {/* Lista de catálogos */}
+            {catalogsLoading ? (
+              <p className="text-center text-ui-fg-subtle py-6">Cargando catálogos...</p>
+            ) : catalogs.length === 0 && !showCatalogCreate ? (
+              <p className="text-center text-ui-fg-subtle py-6">No hay catálogos aún. Agrega el primero.</p>
+            ) : (
+              <div className="flex flex-col gap-y-2">
                 {catalogs.map((catalog) => (
-                  <Table.Row key={catalog.id}>
-                    <Table.Cell>
-                      {catalog.cover_image_url ? (
-                        <img src={catalog.cover_image_url} alt="portada" className="h-10 w-8 object-cover rounded border border-ui-border-base" />
-                      ) : (
-                        <span className="text-ui-fg-muted text-xs">—</span>
+                  <div key={catalog.id} className="flex items-center gap-x-3 border border-ui-border-base rounded-lg p-3">
+                    {catalog.cover_image_url ? (
+                      <img src={catalog.cover_image_url} alt="portada" className="h-12 w-9 object-cover rounded flex-shrink-0" />
+                    ) : (
+                      <div className="h-12 w-9 bg-ui-bg-subtle rounded flex-shrink-0 border border-ui-border-base" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{catalog.title}</p>
+                      {catalog.description && (
+                        <p className="text-ui-fg-subtle text-xs truncate">{catalog.description}</p>
                       )}
-                    </Table.Cell>
-                    <Table.Cell className="font-medium">{catalog.title}</Table.Cell>
-                    <Table.Cell className="text-ui-fg-subtle text-sm">{catalog.description ?? "—"}</Table.Cell>
-                    <Table.Cell>
-                      <a href={catalog.file_url} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline text-sm">
+                      <a href={catalog.file_url} target="_blank" rel="noopener noreferrer" className="text-xs text-ui-fg-interactive hover:underline">
                         Ver PDF
                       </a>
-                    </Table.Cell>
-                    <Table.Cell>
+                    </div>
+                    <div className="flex items-center gap-x-2 flex-shrink-0">
                       <Badge color={catalog.is_active ? "green" : "grey"} size="2xsmall">
                         {catalog.is_active ? "Activo" : "Inactivo"}
                       </Badge>
-                    </Table.Cell>
-                    <Table.Cell>
-                      <div className="flex items-center gap-x-2 justify-end">
-                        <Button size="small" variant="danger" onClick={() => handleDeleteCatalog(catalog.id)}>
-                          Eliminar
-                        </Button>
-                      </div>
-                    </Table.Cell>
-                  </Table.Row>
+                      <Button size="small" variant="danger" onClick={() => handleDeleteCatalog(catalog.id)}>
+                        Eliminar
+                      </Button>
+                    </div>
+                  </div>
                 ))}
-              </Table.Body>
-            </Table>
-          )}
-        </div>
-      )}
+              </div>
+            )}
+          </Drawer.Body>
+
+          <Drawer.Footer>
+            <Button variant="secondary" onClick={handleCloseCatalogs}>Cerrar</Button>
+            <Button onClick={() => { setShowCatalogCreate(true); setCatalogForm({ title: "", description: "", file_url: "", cover_image_url: "" }) }}>
+              + Nuevo catálogo
+            </Button>
+          </Drawer.Footer>
+        </Drawer.Content>
+      </Drawer>
     </Container>
   )
 }
