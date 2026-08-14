@@ -56,6 +56,9 @@ export function NavCategories({ categories }: Props) {
         <Link href="/ofertas" className="px-3 h-10 flex items-center hover:bg-primary-foreground/10 transition-colors font-medium">
           Ofertas
         </Link>
+        <Link href="/catalogos" className="px-3 h-10 flex items-center hover:bg-primary-foreground/10 transition-colors font-medium">
+          Catálogos PDF
+        </Link>
         <Link href="/emprendedores" className="px-3 h-10 flex items-center hover:bg-primary-foreground/10 transition-colors font-medium">
           Emprendedores
         </Link>

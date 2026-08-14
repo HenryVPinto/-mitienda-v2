@@ -72,6 +72,17 @@ export type Brand = {
   logo_url?: string | null
 }
 
+export type BrandCatalog = {
+  id: string
+  brand_id: string
+  title: string
+  description?: string | null
+  file_url: string
+  cover_image_url?: string | null
+  sort_order: number
+  is_active: boolean
+}
+
 export type Vendor = {
   id: string
   name: string

@@ -12,6 +12,25 @@ import {
 } from "@medusajs/ui"
 import { useCallback, useEffect, useRef, useState } from "react"
 
+type BrandCatalog = {
+  id: string
+  brand_id: string
+  title: string
+  description: string | null
+  file_url: string
+  cover_image_url: string | null
+  sort_order: number
+  is_active: boolean
+  created_at: string
+}
+
+type CatalogForm = {
+  title: string
+  description: string
+  file_url: string
+  cover_image_url: string
+}
+
 type Brand = {
   id: string
   name: string
@@ -83,6 +102,18 @@ const BrandsPage = () => {
     website_url: "",
     logo_url: "",
   })
+
+  // Catalog state
+  const [catalogBrandId, setCatalogBrandId] = useState<string | null>(null)
+  const [catalogs, setCatalogs] = useState<BrandCatalog[]>([])
+  const [catalogsLoading, setCatalogsLoading] = useState(false)
+  const [showCatalogCreate, setShowCatalogCreate] = useState(false)
+  const [catalogForm, setCatalogForm] = useState<CatalogForm>({ title: "", description: "", file_url: "", cover_image_url: "" })
+  const [catalogSubmitting, setCatalogSubmitting] = useState(false)
+  const [catalogUploading, setCatalogUploading] = useState(false)
+  const [catalogCoverUploading, setCatalogCoverUploading] = useState(false)
+  const catalogPdfRef = useRef<HTMLInputElement>(null)
+  const catalogCoverRef = useRef<HTMLInputElement>(null)
 
   const createFileRef = useRef<HTMLInputElement>(null)
   const editFileRef = useRef<HTMLInputElement>(null)
@@ -251,6 +282,121 @@ const BrandsPage = () => {
       toast.error("Error al eliminar marca")
     }
   }
+
+  const fetchCatalogs = useCallback(async (brandId: string) => {
+    setCatalogsLoading(true)
+    try {
+      const res = await fetch(`${base}/admin/brands/${brandId}/catalogs`, { credentials: "include" })
+      const data = await res.json()
+      setCatalogs(data.catalogs ?? [])
+    } catch {
+      toast.error("Error al cargar catálogos")
+    } finally {
+      setCatalogsLoading(false)
+    }
+  }, [base])
+
+  const handleOpenCatalogs = (brand: Brand) => {
+    setCatalogBrandId(brand.id)
+    setShowCatalogCreate(false)
+    setCatalogForm({ title: "", description: "", file_url: "", cover_image_url: "" })
+    fetchCatalogs(brand.id)
+  }
+
+  const handleCloseCatalogs = () => {
+    setCatalogBrandId(null)
+    setCatalogs([])
+    setShowCatalogCreate(false)
+  }
+
+  const uploadPdf = async (file: File): Promise<string | null> => {
+    const formData = new FormData()
+    formData.append("files", file)
+    const res = await fetch(`${base}/admin/uploads`, {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+    })
+    if (!res.ok) throw new Error("Error al subir archivo")
+    const data = await res.json()
+    return data.files?.[0]?.url ?? null
+  }
+
+  const handlePdfChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setCatalogUploading(true)
+    try {
+      const url = await uploadPdf(file)
+      if (url) setCatalogForm((f) => ({ ...f, file_url: url }))
+      toast.success("PDF subido")
+    } catch {
+      toast.error("Error al subir PDF")
+    } finally {
+      setCatalogUploading(false)
+    }
+  }
+
+  const handleCoverChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setCatalogCoverUploading(true)
+    try {
+      const url = await uploadFile(file)
+      if (url) setCatalogForm((f) => ({ ...f, cover_image_url: url }))
+      toast.success("Portada subida")
+    } catch {
+      toast.error("Error al subir portada")
+    } finally {
+      setCatalogCoverUploading(false)
+    }
+  }
+
+  const handleCreateCatalog = async () => {
+    if (!catalogForm.title.trim() || !catalogForm.file_url) {
+      toast.error("Título y PDF son requeridos")
+      return
+    }
+    setCatalogSubmitting(true)
+    try {
+      const res = await fetch(`${base}/admin/brands/${catalogBrandId}/catalogs`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: catalogForm.title,
+          description: catalogForm.description || null,
+          file_url: catalogForm.file_url,
+          cover_image_url: catalogForm.cover_image_url || null,
+        }),
+      })
+      if (!res.ok) throw new Error()
+      toast.success("Catálogo creado")
+      setShowCatalogCreate(false)
+      setCatalogForm({ title: "", description: "", file_url: "", cover_image_url: "" })
+      fetchCatalogs(catalogBrandId!)
+    } catch {
+      toast.error("Error al crear catálogo")
+    } finally {
+      setCatalogSubmitting(false)
+    }
+  }
+
+  const handleDeleteCatalog = async (catalogId: string) => {
+    if (!confirm("¿Eliminar este catálogo?")) return
+    try {
+      await fetch(`${base}/admin/brands/${catalogBrandId}/catalogs/${catalogId}`, {
+        method: "DELETE",
+        credentials: "include",
+      })
+      toast.success("Catálogo eliminado")
+      fetchCatalogs(catalogBrandId!)
+    } catch {
+      toast.error("Error al eliminar catálogo")
+    }
+  }
+
+  const catalogBrand = brands.find((b) => b.id === catalogBrandId)
 
   return (
     <Container className="divide-y p-0">
@@ -493,6 +639,9 @@ const BrandsPage = () => {
                   </Table.Cell>
                   <Table.Cell>
                     <div className="flex items-center gap-x-2 justify-end">
+                      <Button size="small" variant="secondary" onClick={() => handleOpenCatalogs(brand)}>
+                        Catálogos
+                      </Button>
                       <Button size="small" variant="secondary" onClick={() => handleStartEdit(brand)}>
                         Editar
                       </Button>
@@ -509,6 +658,136 @@ const BrandsPage = () => {
             )}
           </Table.Body>
         </Table>
+      )}
+
+      {/* Panel de catálogos */}
+      {catalogBrandId && catalogBrand && (
+        <div className="border-t border-ui-border-base">
+          <div className="px-6 py-4 flex items-center justify-between bg-ui-bg-subtle">
+            <div>
+              <Heading level="h3">Catálogos PDF — {catalogBrand.name}</Heading>
+              <p className="text-ui-fg-subtle txt-small mt-0.5">{catalogs.length} catálogo{catalogs.length !== 1 ? "s" : ""}</p>
+            </div>
+            <div className="flex items-center gap-x-2">
+              <Button
+                size="small"
+                variant={showCatalogCreate ? "secondary" : "primary"}
+                onClick={() => setShowCatalogCreate((v) => !v)}
+              >
+                {showCatalogCreate ? "Cancelar" : "+ Nuevo catálogo"}
+              </Button>
+              <Button size="small" variant="transparent" onClick={handleCloseCatalogs}>
+                Cerrar
+              </Button>
+            </div>
+          </div>
+
+          {showCatalogCreate && (
+            <div className="px-6 py-4 border-b border-ui-border-base bg-white">
+              <div className="grid grid-cols-2 gap-4 max-w-2xl">
+                <div className="flex flex-col gap-y-1">
+                  <Label size="small">Título *</Label>
+                  <Input
+                    size="small"
+                    value={catalogForm.title}
+                    onChange={(e) => setCatalogForm((f) => ({ ...f, title: e.target.value }))}
+                    placeholder="Ej: Catálogo 2024"
+                  />
+                </div>
+                <div className="flex flex-col gap-y-1">
+                  <Label size="small">Descripción</Label>
+                  <Input
+                    size="small"
+                    value={catalogForm.description}
+                    onChange={(e) => setCatalogForm((f) => ({ ...f, description: e.target.value }))}
+                    placeholder="Opcional"
+                  />
+                </div>
+                <div className="flex flex-col gap-y-1">
+                  <Label size="small">Archivo PDF *</Label>
+                  <div className="flex items-center gap-x-2">
+                    <input ref={catalogPdfRef} type="file" accept="application/pdf" className="hidden" onChange={handlePdfChange} />
+                    <Button size="small" variant="secondary" isLoading={catalogUploading} onClick={() => catalogPdfRef.current?.click()}>
+                      {catalogForm.file_url ? "PDF cargado ✓" : "Subir PDF"}
+                    </Button>
+                    {catalogForm.file_url && (
+                      <a href={catalogForm.file_url} target="_blank" rel="noopener noreferrer" className="text-xs text-ui-fg-interactive hover:underline">
+                        Ver PDF
+                      </a>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-y-1">
+                  <Label size="small">Imagen de portada</Label>
+                  <div className="flex items-center gap-x-2">
+                    {catalogForm.cover_image_url && (
+                      <img src={catalogForm.cover_image_url} alt="portada" className="h-8 w-8 object-cover rounded border border-ui-border-base" />
+                    )}
+                    <input ref={catalogCoverRef} type="file" accept="image/*" className="hidden" onChange={handleCoverChange} />
+                    <Button size="small" variant="secondary" isLoading={catalogCoverUploading} onClick={() => catalogCoverRef.current?.click()}>
+                      {catalogForm.cover_image_url ? "Cambiar" : "Subir portada"}
+                    </Button>
+                  </div>
+                </div>
+                <div className="col-span-2 flex justify-end gap-x-2">
+                  <Button size="small" variant="secondary" onClick={() => setShowCatalogCreate(false)}>Cancelar</Button>
+                  <Button size="small" isLoading={catalogSubmitting} onClick={handleCreateCatalog}>Guardar catálogo</Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {catalogsLoading ? (
+            <div className="px-6 py-6 text-center text-ui-fg-subtle">Cargando catálogos...</div>
+          ) : catalogs.length === 0 ? (
+            <div className="px-6 py-6 text-center text-ui-fg-subtle">No hay catálogos para esta marca. Agrega el primero.</div>
+          ) : (
+            <Table>
+              <Table.Header>
+                <Table.Row>
+                  <Table.HeaderCell>Portada</Table.HeaderCell>
+                  <Table.HeaderCell>Título</Table.HeaderCell>
+                  <Table.HeaderCell>Descripción</Table.HeaderCell>
+                  <Table.HeaderCell>PDF</Table.HeaderCell>
+                  <Table.HeaderCell>Estado</Table.HeaderCell>
+                  <Table.HeaderCell />
+                </Table.Row>
+              </Table.Header>
+              <Table.Body>
+                {catalogs.map((catalog) => (
+                  <Table.Row key={catalog.id}>
+                    <Table.Cell>
+                      {catalog.cover_image_url ? (
+                        <img src={catalog.cover_image_url} alt="portada" className="h-10 w-8 object-cover rounded border border-ui-border-base" />
+                      ) : (
+                        <span className="text-ui-fg-muted text-xs">—</span>
+                      )}
+                    </Table.Cell>
+                    <Table.Cell className="font-medium">{catalog.title}</Table.Cell>
+                    <Table.Cell className="text-ui-fg-subtle text-sm">{catalog.description ?? "—"}</Table.Cell>
+                    <Table.Cell>
+                      <a href={catalog.file_url} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline text-sm">
+                        Ver PDF
+                      </a>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Badge color={catalog.is_active ? "green" : "grey"} size="2xsmall">
+                        {catalog.is_active ? "Activo" : "Inactivo"}
+                      </Badge>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <div className="flex items-center gap-x-2 justify-end">
+                        <Button size="small" variant="danger" onClick={() => handleDeleteCatalog(catalog.id)}>
+                          Eliminar
+                        </Button>
+                      </div>
+                    </Table.Cell>
+                  </Table.Row>
+                ))}
+              </Table.Body>
+            </Table>
+          )}
+        </div>
       )}
     </Container>
   )
