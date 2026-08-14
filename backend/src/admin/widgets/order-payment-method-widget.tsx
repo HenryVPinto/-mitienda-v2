@@ -31,7 +31,7 @@ const OrderPaymentMethodWidget = ({ data: order }: Props) => {
 }
 
 export const config = defineWidgetConfig({
-  zone: "order.details.before",
+  zone: "order.details.side.before",
 })
 
 export default OrderPaymentMethodWidget
