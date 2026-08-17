@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation"
 import { storeGet } from "@/lib/medusa"
+import { sanitize } from "@/lib/sanitize"
 import type { CmsPage } from "@/lib/types"
 
 type Props = {
@@ -27,7 +28,7 @@ export default async function CmsPageRoute({ params }: Props) {
       <h1 className="text-2xl font-bold text-gray-800 mb-6">{page.title}</h1>
       <div
         className="rich-description prose prose-sm prose-gray max-w-none text-gray-600 leading-relaxed"
-        dangerouslySetInnerHTML={{ __html: page.content }}
+        dangerouslySetInnerHTML={{ __html: sanitize(page.content) }}
       />
     </div>
   )

@@ -5,6 +5,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { storeGet } from "@/lib/medusa"
+import { sanitize } from "@/lib/sanitize"
 import type { FaqItem } from "@/lib/types"
 
 async function getFaq(): Promise<FaqItem[]> {
@@ -57,7 +58,7 @@ export default async function FaqPage() {
                         {item.answer.trimStart().startsWith("<") ? (
                           <div
                             className="rich-description"
-                            dangerouslySetInnerHTML={{ __html: item.answer }}
+                            dangerouslySetInnerHTML={{ __html: sanitize(item.answer) }}
                           />
                         ) : (
                           item.answer

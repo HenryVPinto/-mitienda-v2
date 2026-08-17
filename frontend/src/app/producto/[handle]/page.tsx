@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import { ChevronRight } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import { storeGet, getDefaultRegionId } from "@/lib/medusa"
+import { sanitize } from "@/lib/sanitize"
 import { ProductDetail } from "@/components/product/product-detail"
 import { ProductCard } from "@/components/product/product-card"
 import type { Product, PricingTier } from "@/lib/types"
@@ -115,7 +116,7 @@ export default async function ProductPage({ params }: Props) {
           {/<[a-z]/i.test(product.description) ? (
             <div
               className="rich-description text-gray-600 text-sm"
-              dangerouslySetInnerHTML={{ __html: product.description }}
+              dangerouslySetInnerHTML={{ __html: sanitize(product.description) }}
             />
           ) : (
             <p className="text-gray-600 leading-relaxed text-sm whitespace-pre-line">{product.description}</p>
