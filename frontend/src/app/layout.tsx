@@ -16,6 +16,9 @@ const nunito = Nunito({ subsets: ["latin"], variable: "--font-nunito", weight: [
 export const metadata: Metadata = {
   title: "MiTienda — Tu marketplace en Guatemala",
   description: "Encuentra los mejores productos de emprendedores guatemaltecos.",
+  verification: {
+    google: "R8CQUzSvZEHnpevCo2JWvyzhp_-60VvUvFiSmefoRtQ",
+  },
 }
 
 async function getRootCategories(): Promise<Category[]> {
