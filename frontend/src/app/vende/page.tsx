@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { Store, TrendingUp, Users, ShieldCheck, CheckCircle2 } from "lucide-react"
+import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
@@ -49,6 +50,8 @@ export default function VendePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [submitted, setSubmitted] = useState(false)
+  const [turnstileToken, setTurnstileToken] = useState("")
+  const turnstileRef = useRef<TurnstileInstance>(null)
 
   const set = (field: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [field]: e.target.value }))
@@ -56,24 +59,26 @@ export default function VendePage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError("")
+
+    if (!turnstileToken) {
+      setError("Completa la verificación de seguridad.")
+      return
+    }
+
     setLoading(true)
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_MEDUSA_URL}/store/vendor-applications`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-publishable-api-key": process.env.NEXT_PUBLIC_PUBLISHABLE_KEY!,
-          },
-          body: JSON.stringify(form),
-        }
-      )
+      const res = await fetch("/api/vendor-application", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, turnstileToken }),
+      })
       const data = await res.json()
       if (!res.ok) throw new Error(data.message ?? "Error al enviar la solicitud")
       setSubmitted(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al enviar la solicitud")
+      turnstileRef.current?.reset()
+      setTurnstileToken("")
     } finally {
       setLoading(false)
     }
@@ -203,6 +208,14 @@ export default function VendePage() {
             </div>
           </div>
 
+          <Turnstile
+            ref={turnstileRef}
+            siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+            onSuccess={setTurnstileToken}
+            onExpire={() => setTurnstileToken("")}
+            options={{ language: "es" }}
+          />
+
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg">
               {error}
@@ -211,7 +224,7 @@ export default function VendePage() {
 
           <Button
             type="submit"
-            disabled={loading}
+            disabled={loading || !turnstileToken}
             className="w-full bg-primary hover:bg-primary/90 h-12 text-base font-semibold"
           >
             {loading ? "Enviando solicitud..." : "Enviar solicitud"}
