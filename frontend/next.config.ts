@@ -15,7 +15,7 @@ const securityHeaders = [
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: https:",
       "connect-src 'self' https://api.miti.com.gt https://www.google-analytics.com https://www.googletagmanager.com https://challenges.cloudflare.com",
-      "frame-src https://www.googletagmanager.com https://challenges.cloudflare.com",
+      "frame-src https://www.googletagmanager.com https://challenges.cloudflare.com https://www.youtube.com https://www.youtube-nocookie.com https://www.tiktok.com",
       "worker-src blob: https://challenges.cloudflare.com",
       "object-src 'none'",
       "base-uri 'self'",
