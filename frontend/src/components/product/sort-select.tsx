@@ -1,5 +1,3 @@
-"use client"
-
 type Props = {
   current: string
   handle?: string
@@ -8,28 +6,28 @@ type Props = {
 
 const OPTIONS = [
   { value: "relevance", label: "Tendencia" },
-  { value: "price_asc", label: "Precio: menor a mayor" },
-  { value: "price_desc", label: "Precio: mayor a menor" },
+  { value: "price_asc", label: "Menor precio" },
+  { value: "price_desc", label: "Mayor precio" },
 ]
 
 export function SortSelect({ current, handle, basePath }: Props) {
-  const action = basePath ?? (handle ? `/categoria/${handle}` : "/catalogo")
+  const path = basePath ?? (handle ? `/categoria/${handle}` : "/catalogo")
 
   return (
-    <form method="GET" action={action}>
-      <input type="hidden" name="page" value="1" />
-      <select
-        name="sort"
-        defaultValue={current}
-        onChange={(e) => e.currentTarget.form?.submit()}
-        className="text-sm border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:border-primary bg-white"
-      >
-        {OPTIONS.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </form>
+    <div className="flex items-center gap-1 flex-wrap">
+      {OPTIONS.map((o) => (
+        <a
+          key={o.value}
+          href={`${path}?sort=${o.value}&page=1`}
+          className={`text-xs px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap ${
+            current === o.value
+              ? "bg-primary text-white border-primary"
+              : "border-gray-200 text-gray-600 hover:border-primary hover:text-primary"
+          }`}
+        >
+          {o.label}
+        </a>
+      ))}
+    </div>
   )
 }
