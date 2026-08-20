@@ -4,7 +4,6 @@ import { ChevronRight } from "lucide-react"
 import { notFound } from "next/navigation"
 import { storeGet } from "@/lib/medusa"
 import { ProductCard } from "@/components/product/product-card"
-import { SortSelect } from "@/components/product/sort-select"
 import type { Brand, Product } from "@/lib/types"
 
 type Props = {

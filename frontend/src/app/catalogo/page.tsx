@@ -8,7 +8,6 @@ import {
 import type { LucideProps } from "lucide-react"
 import { storeGet, getDefaultRegionId } from "@/lib/medusa"
 import { ProductCard } from "@/components/product/product-card"
-import { SortSelect } from "@/components/product/sort-select"
 import type { Product, Category } from "@/lib/types"
 
 type IconComponent = React.ComponentType<LucideProps>
@@ -33,7 +32,7 @@ function getCategoryIcon(cat: Category): React.ReactNode {
 }
 
 type Props = {
-  searchParams: Promise<{ page?: string; sort?: string; category?: string }>
+  searchParams: Promise<{ page?: string; category?: string }>
 }
 
 const LIMIT = 12
@@ -47,54 +46,33 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
-async function getProducts(page: number, sort: string) {
+async function getProducts(page: number) {
   const regionId = await getDefaultRegionId()
-
-  if (sort === "relevance") {
-    // Para orden aleatorio: traemos todos los productos y paginamos en memoria
-    const fields =
-      "id,title,handle,thumbnail,images.*,variants.id,variants.prices.*,variants.calculated_price.*,variants.metadata,mt_brand.*,mt_vendor.*"
-    const baseParams: Record<string, string> = { fields }
-    if (regionId) baseParams.region_id = regionId
-    try {
-      const first = await storeGet<{ products: Product[]; count: number }>("/store/products", {
-        ...baseParams, limit: "100", offset: "0",
-      })
-      const total = first.count ?? 0
-      let all = [...(first.products ?? [])]
-
-      if (total > 100) {
-        const extra = await Promise.all(
-          Array.from({ length: Math.ceil((total - 100) / 100) }, (_, i) =>
-            storeGet<{ products: Product[]; count: number }>("/store/products", {
-              ...baseParams, limit: "100", offset: String((i + 1) * 100),
-            })
-          )
-        )
-        for (const r of extra) all = all.concat(r.products ?? [])
-      }
-
-      const shuffled = shuffle(all)
-      const start = (page - 1) * LIMIT
-      return { products: shuffled.slice(start, start + LIMIT), count: total }
-    } catch {
-      return { products: [], count: 0 }
-    }
-  }
-
-  const params: Record<string, string> = {
-    limit: String(LIMIT),
-    offset: String((page - 1) * LIMIT),
-    fields:
-      "id,title,handle,thumbnail,images.*,variants.id,variants.prices.*,variants.calculated_price.*,variants.metadata,mt_brand.*,mt_vendor.*",
-  }
-  if (regionId) params.region_id = regionId
-  if (sort === "price_asc") params.order = "variants.prices.amount"
-  if (sort === "price_desc") params.order = "-variants.prices.amount"
-
+  const fields =
+    "id,title,handle,thumbnail,images.*,variants.id,variants.prices.*,variants.calculated_price.*,variants.metadata,mt_brand.*,mt_vendor.*"
+  const baseParams: Record<string, string> = { fields }
+  if (regionId) baseParams.region_id = regionId
   try {
-    const data = await storeGet<{ products: Product[]; count: number }>("/store/products", params)
-    return { products: data.products ?? [], count: data.count ?? 0 }
+    const first = await storeGet<{ products: Product[]; count: number }>("/store/products", {
+      ...baseParams, limit: "100", offset: "0",
+    })
+    const total = first.count ?? 0
+    let all = [...(first.products ?? [])]
+
+    if (total > 100) {
+      const extra = await Promise.all(
+        Array.from({ length: Math.ceil((total - 100) / 100) }, (_, i) =>
+          storeGet<{ products: Product[]; count: number }>("/store/products", {
+            ...baseParams, limit: "100", offset: String((i + 1) * 100),
+          })
+        )
+      )
+      for (const r of extra) all = all.concat(r.products ?? [])
+    }
+
+    const shuffled = shuffle(all)
+    const start = (page - 1) * LIMIT
+    return { products: shuffled.slice(start, start + LIMIT), count: total }
   } catch {
     return { products: [], count: 0 }
   }
@@ -114,7 +92,7 @@ async function getCategories(): Promise<Category[]> {
 }
 
 export default async function CatalogoPage({ searchParams }: Props) {
-  const { page: pageStr, sort = "relevance", category } = await searchParams
+  const { page: pageStr, category } = await searchParams
 
   // Legacy links with ?category= redirect to the dedicated category page
   if (category) redirect(`/categoria/${category}`)
@@ -122,7 +100,7 @@ export default async function CatalogoPage({ searchParams }: Props) {
   const page = Math.max(1, Number(pageStr) || 1)
 
   const [{ products, count }, categories] = await Promise.all([
-    getProducts(page, sort),
+    getProducts(page),
     getCategories(),
   ])
 
@@ -159,15 +137,9 @@ export default async function CatalogoPage({ searchParams }: Props) {
 
         {/* Contenido principal */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-            <div>
-              <h1 className="text-xl font-bold text-gray-800">Catálogo general</h1>
-              <p className="text-sm text-gray-500 mt-0.5">{count} productos</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600">Ordenar por:</label>
-              <SortSelect current={sort} basePath="/catalogo" />
-            </div>
+          <div className="mb-4">
+            <h1 className="text-xl font-bold text-gray-800">Catálogo general</h1>
+            <p className="text-sm text-gray-500 mt-0.5">{count} productos</p>
           </div>
 
           {/* Filtros de categoría en mobile */}
@@ -205,7 +177,7 @@ export default async function CatalogoPage({ searchParams }: Props) {
             <div className="flex items-center justify-center gap-3 mt-8">
               {page > 1 && (
                 <Link
-                  href={`/catalogo?page=${page - 1}&sort=${sort}${category ? `&category=${category}` : ""}`}
+                  href={`/catalogo?page=${page - 1}`}
                   className="px-4 py-2 border border-gray-200 rounded-lg text-sm hover:border-primary hover:text-primary transition-colors"
                 >
                   ← Anterior
@@ -214,7 +186,7 @@ export default async function CatalogoPage({ searchParams }: Props) {
               <span className="text-sm text-gray-500">Página {page} de {totalPages}</span>
               {page < totalPages && (
                 <Link
-                  href={`/catalogo?page=${page + 1}&sort=${sort}${category ? `&category=${category}` : ""}`}
+                  href={`/catalogo?page=${page + 1}`}
                   className="px-4 py-2 border border-gray-200 rounded-lg text-sm hover:border-primary hover:text-primary transition-colors"
                 >
                   Siguiente →

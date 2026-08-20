@@ -3,12 +3,11 @@ import { ChevronRight } from "lucide-react"
 import { notFound } from "next/navigation"
 import { storeGet, getDefaultRegionId } from "@/lib/medusa"
 import { ProductCard } from "@/components/product/product-card"
-import { SortSelect } from "@/components/product/sort-select"
 import type { Category, Product } from "@/lib/types"
 
 type Props = {
   params: Promise<{ handle: string }>
-  searchParams: Promise<{ page?: string; sort?: string; min?: string; max?: string }>
+  searchParams: Promise<{ page?: string }>
 }
 
 const LIMIT = 12
@@ -27,8 +26,7 @@ async function getCategory(handle: string): Promise<Category | null> {
 
 async function getProducts(
   categoryId: string,
-  page: number,
-  sort: string
+  page: number
 ): Promise<{ products: Product[]; count: number }> {
   const regionId = await getDefaultRegionId()
   const offset = (page - 1) * LIMIT
@@ -40,8 +38,6 @@ async function getProducts(
       "id,title,handle,thumbnail,images.*,variants.id,variants.prices.*,variants.calculated_price.*,variants.metadata,mt_brand.*,mt_vendor.*",
   }
   if (regionId) params.region_id = regionId
-  if (sort === "price_asc") params.order = "variants.prices.amount"
-  if (sort === "price_desc") params.order = "-variants.prices.amount"
 
   try {
     const data = await storeGet<{ products: Product[]; count: number }>(
@@ -57,14 +53,14 @@ async function getProducts(
 export default async function CategoryPage({ params, searchParams }: Props) {
   const { handle: rawHandle } = await params
   const handle = decodeURIComponent(rawHandle)
-  const { page: pageStr, sort = "relevance" } = await searchParams
+  const { page: pageStr } = await searchParams
 
   const page = Math.max(1, Number(pageStr) || 1)
 
   const category = await getCategory(handle)
   if (!category) notFound()
 
-  const { products, count } = await getProducts(category.id, page, sort)
+  const { products, count } = await getProducts(category.id, page)
 
   const totalPages = Math.ceil(count / LIMIT)
 
@@ -85,16 +81,9 @@ export default async function CategoryPage({ params, searchParams }: Props) {
         )}
       </div>
 
-      {/* Controles */}
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <p className="text-sm text-gray-500">
-          {count} {count === 1 ? "resultado" : "resultados"} para <strong>{category.name}</strong>
-        </p>
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600">Ordenar por:</label>
-          <SortSelect current={sort} handle={handle} />
-        </div>
-      </div>
+      <p className="text-sm text-gray-500 mb-4">
+        {count} {count === 1 ? "resultado" : "resultados"} para <strong>{category.name}</strong>
+      </p>
 
       {/* Grid */}
       {products.length === 0 ? (
@@ -114,7 +103,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
         <div className="flex items-center justify-center gap-3 mt-8">
           {page > 1 && (
             <Link
-              href={`/categoria/${handle}?page=${page - 1}&sort=${sort}`}
+              href={`/categoria/${handle}?page=${page - 1}`}
               className="px-4 py-2 border border-gray-200 rounded-lg text-sm hover:border-primary hover:text-primary transition-colors"
             >
               ← Anterior
@@ -125,7 +114,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
           </span>
           {page < totalPages && (
             <Link
-              href={`/categoria/${handle}?page=${page + 1}&sort=${sort}`}
+              href={`/categoria/${handle}?page=${page + 1}`}
               className="px-4 py-2 border border-gray-200 rounded-lg text-sm hover:border-primary hover:text-primary transition-colors"
             >
               Siguiente →
