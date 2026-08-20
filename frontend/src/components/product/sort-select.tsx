@@ -29,7 +29,7 @@ export function SortSelect({ current, handle, basePath }: Props) {
 
   return (
     <select
-      defaultValue={current}
+      value={current}
       onChange={handleChange}
       className="text-sm border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:border-primary bg-white"
     >

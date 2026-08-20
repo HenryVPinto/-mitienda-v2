@@ -38,8 +38,50 @@ type Props = {
 
 const LIMIT = 12
 
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
 async function getProducts(page: number, sort: string) {
   const regionId = await getDefaultRegionId()
+
+  if (sort === "relevance") {
+    // Para orden aleatorio: traemos todos los productos y paginamos en memoria
+    const fields =
+      "id,title,handle,thumbnail,images.*,variants.id,variants.prices.*,variants.calculated_price.*,variants.metadata,mt_brand.*,mt_vendor.*"
+    const baseParams: Record<string, string> = { fields }
+    if (regionId) baseParams.region_id = regionId
+    try {
+      const first = await storeGet<{ products: Product[]; count: number }>("/store/products", {
+        ...baseParams, limit: "100", offset: "0",
+      })
+      const total = first.count ?? 0
+      let all = [...(first.products ?? [])]
+
+      if (total > 100) {
+        const extra = await Promise.all(
+          Array.from({ length: Math.ceil((total - 100) / 100) }, (_, i) =>
+            storeGet<{ products: Product[]; count: number }>("/store/products", {
+              ...baseParams, limit: "100", offset: String((i + 1) * 100),
+            })
+          )
+        )
+        for (const r of extra) all = all.concat(r.products ?? [])
+      }
+
+      const shuffled = shuffle(all)
+      const start = (page - 1) * LIMIT
+      return { products: shuffled.slice(start, start + LIMIT), count: total }
+    } catch {
+      return { products: [], count: 0 }
+    }
+  }
+
   const params: Record<string, string> = {
     limit: String(LIMIT),
     offset: String((page - 1) * LIMIT),
