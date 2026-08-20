@@ -13,22 +13,23 @@ const OPTIONS = [
 ]
 
 export function SortSelect({ current, handle, basePath }: Props) {
-  function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const path = basePath ?? (handle ? `/categoria/${handle}` : "/catalogo")
-    window.location.href = `${path}?sort=${e.target.value}&page=1`
-  }
+  const action = basePath ?? (handle ? `/categoria/${handle}` : "/catalogo")
 
   return (
-    <select
-      defaultValue={current}
-      onChange={handleChange}
-      className="text-sm border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:border-primary bg-white"
-    >
-      {OPTIONS.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
+    <form method="GET" action={action}>
+      <input type="hidden" name="page" value="1" />
+      <select
+        name="sort"
+        defaultValue={current}
+        onChange={(e) => e.currentTarget.form?.submit()}
+        className="text-sm border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:border-primary bg-white"
+      >
+        {OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </form>
   )
 }
