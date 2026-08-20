@@ -1,13 +1,8 @@
 "use client"
 
-import { useRouter } from "next/navigation"
-import { useState, useEffect } from "react"
-
 type Props = {
   current: string
-  /** Para categoría: handle de la categoría. Para catálogo general: omitir. */
   handle?: string
-  /** Ruta base completa. Si se pasa, tiene precedencia sobre handle. */
   basePath?: string
 }
 
@@ -18,27 +13,14 @@ const OPTIONS = [
 ]
 
 export function SortSelect({ current, handle, basePath }: Props) {
-  const router = useRouter()
-  const [selected, setSelected] = useState(current)
-
-  // Sincronizar si cambia por navegación back/forward
-  useEffect(() => {
-    setSelected(current)
-  }, [current])
-
   function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const val = e.target.value
-    setSelected(val)
-    const url = new URL(window.location.href)
-    url.searchParams.set("sort", val)
-    url.searchParams.set("page", "1")
     const path = basePath ?? (handle ? `/categoria/${handle}` : "/catalogo")
-    router.push(`${path}?${url.searchParams.toString()}`)
+    window.location.href = `${path}?sort=${e.target.value}&page=1`
   }
 
   return (
     <select
-      value={selected}
+      defaultValue={current}
       onChange={handleChange}
       className="text-sm border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:border-primary bg-white"
     >
