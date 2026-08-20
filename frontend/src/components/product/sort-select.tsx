@@ -1,6 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
 
 type Props = {
   current: string
@@ -18,10 +19,18 @@ const OPTIONS = [
 
 export function SortSelect({ current, handle, basePath }: Props) {
   const router = useRouter()
+  const [selected, setSelected] = useState(current)
+
+  // Sincronizar si cambia por navegación back/forward
+  useEffect(() => {
+    setSelected(current)
+  }, [current])
 
   function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const val = e.target.value
+    setSelected(val)
     const url = new URL(window.location.href)
-    url.searchParams.set("sort", e.target.value)
+    url.searchParams.set("sort", val)
     url.searchParams.set("page", "1")
     const path = basePath ?? (handle ? `/categoria/${handle}` : "/catalogo")
     router.push(`${path}?${url.searchParams.toString()}`)
@@ -29,7 +38,7 @@ export function SortSelect({ current, handle, basePath }: Props) {
 
   return (
     <select
-      value={current}
+      value={selected}
       onChange={handleChange}
       className="text-sm border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:border-primary bg-white"
     >
