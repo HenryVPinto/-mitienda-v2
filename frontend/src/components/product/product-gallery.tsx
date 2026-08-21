@@ -11,6 +11,7 @@ export function ProductGallery({ images, title }: { images: ImageItem[]; title: 
   const [zooming, setZooming] = useState(false)
   const [origin, setOrigin] = useState({ x: 50, y: 50 })
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const touchStartX = useRef<number | null>(null)
 
   const total = images.length
 
@@ -48,6 +49,18 @@ export function ProductGallery({ images, title }: { images: ImageItem[]; title: 
     startInterval()
   }
 
+  function handleTouchStart(e: React.TouchEvent<HTMLDivElement>) {
+    touchStartX.current = e.touches[0].clientX
+  }
+
+  function handleTouchEnd(e: React.TouchEvent<HTMLDivElement>) {
+    if (touchStartX.current === null) return
+    const delta = e.changedTouches[0].clientX - touchStartX.current
+    touchStartX.current = null
+    if (Math.abs(delta) < 50) return
+    handleNav(delta < 0 ? next : prev)
+  }
+
   function handleMouseMove(e: React.MouseEvent<HTMLDivElement>) {
     const rect = e.currentTarget.getBoundingClientRect()
     const x = ((e.clientX - rect.left) / rect.width) * 100
@@ -72,6 +85,8 @@ export function ProductGallery({ images, title }: { images: ImageItem[]; title: 
           onMouseEnter={() => { setZooming(true); stopInterval() }}
           onMouseLeave={() => { setZooming(false); startInterval() }}
           onMouseMove={handleMouseMove}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
         >
           {/* Wrapper zoom */}
           <div
