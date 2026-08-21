@@ -104,8 +104,8 @@ function buildItem(product: any, variant: any, hasMultipleVariants: boolean): st
   return xml
 }
 
-// GET /store/mt-feed/google
-// Retorna el feed XML de Google Merchant Center con todos los productos publicados.
+// GET /mt-feed/google
+// Ruta pública (sin x-publishable-api-key) para Google Merchant Center.
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
