@@ -12,6 +12,9 @@ export function ProductGallery({ images, title }: { images: ImageItem[]; title: 
   const [origin, setOrigin] = useState({ x: 50, y: 50 })
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const touchStartX = useRef<number | null>(null)
+  // Tracks if the user is actively interacting (hover or touch) — prevents
+  // startInterval from firing while the user is still exploring the image.
+  const interactingRef = useRef(false)
 
   const total = images.length
 
@@ -22,14 +25,6 @@ export function ProductGallery({ images, title }: { images: ImageItem[]; title: 
   const prev = useCallback(() => goTo(selected - 1), [goTo, selected])
   const next = useCallback(() => goTo(selected + 1), [goTo, selected])
 
-  // Auto-rotación cada 3 segundos, se pausa al hacer hover (zoom)
-  const startInterval = useCallback(() => {
-    if (total <= 1) return
-    intervalRef.current = setInterval(() => {
-      setSelected((s) => ((s + 1) % total))
-    }, 3000)
-  }, [total])
-
   const stopInterval = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current)
@@ -37,27 +32,57 @@ export function ProductGallery({ images, title }: { images: ImageItem[]; title: 
     }
   }, [])
 
+  const startInterval = useCallback(() => {
+    if (total <= 1 || interactingRef.current) return
+    // Always clear before starting — prevents multiple simultaneous intervals
+    // that cause rapid image jumps when nav is clicked during hover.
+    if (intervalRef.current) clearInterval(intervalRef.current)
+    intervalRef.current = setInterval(() => {
+      setSelected((s) => ((s + 1) % total))
+    }, 3000)
+  }, [total])
+
   useEffect(() => {
     startInterval()
     return stopInterval
   }, [startInterval, stopInterval])
 
+  // Pause when tab/app goes to background to prevent rapid-fire on resume (mobile).
+  useEffect(() => {
+    if (total <= 1) return
+    const handleVisibility = () => {
+      if (document.hidden) {
+        stopInterval()
+      } else if (!interactingRef.current) {
+        startInterval()
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibility)
+    return () => document.removeEventListener("visibilitychange", handleVisibility)
+  }, [startInterval, stopInterval, total])
+
   // Reiniciar el timer cuando el usuario navega manualmente
   function handleNav(fn: () => void) {
     stopInterval()
     fn()
-    startInterval()
+    startInterval() // no-op if interactingRef.current === true
   }
 
   function handleTouchStart(e: React.TouchEvent<HTMLDivElement>) {
     touchStartX.current = e.touches[0].clientX
+    interactingRef.current = true
+    stopInterval()
   }
 
   function handleTouchEnd(e: React.TouchEvent<HTMLDivElement>) {
     if (touchStartX.current === null) return
     const delta = e.changedTouches[0].clientX - touchStartX.current
     touchStartX.current = null
-    if (Math.abs(delta) < 50) return
+    interactingRef.current = false
+    if (Math.abs(delta) < 50) {
+      startInterval()
+      return
+    }
     handleNav(delta < 0 ? next : prev)
   }
 
@@ -82,8 +107,16 @@ export function ProductGallery({ images, title }: { images: ImageItem[]; title: 
       <div className="relative">
         <div
           className="relative aspect-square bg-gray-50 rounded-xl overflow-hidden select-none cursor-zoom-in"
-          onMouseEnter={() => { setZooming(true); stopInterval() }}
-          onMouseLeave={() => { setZooming(false); startInterval() }}
+          onMouseEnter={() => {
+            interactingRef.current = true
+            setZooming(true)
+            stopInterval()
+          }}
+          onMouseLeave={() => {
+            interactingRef.current = false
+            setZooming(false)
+            startInterval()
+          }}
           onMouseMove={handleMouseMove}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
