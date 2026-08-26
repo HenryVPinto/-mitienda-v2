@@ -1,6 +1,7 @@
 import { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { resend, FROM, ADMIN_EMAIL, STORE_NAME, STORE_URL, WHATSAPP_NUMBER, formatPrice, emailHeader, emailFooter } from "../lib/resend"
+import { sendWhatsApp } from "../lib/callmebot"
 
 export default async function orderPlacedHandler({
   event: { data },
@@ -128,6 +129,27 @@ export default async function orderPlacedHandler({
     </body>
     </html>`
 
+  const adminBackendUrl = process.env.MEDUSA_BACKEND_URL ?? STORE_URL
+  const orderAdminUrl = `${adminBackendUrl}/app/orders/${order.id}`
+
+  const itemCount = items.reduce((sum: number, i: any) => sum + i.quantity, 0)
+  const address = order.shipping_address
+  const customerName = address ? `${address.first_name} ${address.last_name}`.trim() : order.email
+  const location = address
+    ? [address.city, address.province].filter(Boolean).join(", ")
+    : ""
+
+  const whatsappMessage = [
+    `🛍️ *Nuevo pedido #${order.display_id}*`,
+    `──────────────────────`,
+    `📦 ${itemCount} producto${itemCount !== 1 ? "s" : ""} — ${formatPrice(order.total)}`,
+    `👤 ${customerName}`,
+    location ? `📍 ${location}` : null,
+    `💳 ${paymentLabel}`,
+    ``,
+    `Ver pedido → ${orderAdminUrl}`,
+  ].filter((l) => l !== null).join("\n")
+
   await Promise.all([
     resend.emails.send({
       from: FROM,
@@ -141,6 +163,7 @@ export default async function orderPlacedHandler({
       subject: `🛍️ Nuevo pedido #${order.display_id} de ${order.email}`,
       html: adminHtml,
     }),
+    sendWhatsApp(whatsappMessage),
   ])
 }
 
