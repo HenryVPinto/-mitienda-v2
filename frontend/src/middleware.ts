@@ -26,14 +26,14 @@ export function middleware(req: NextRequest) {
     }
   }
 
-  // Marcar rutas vendor para que el root layout omita header/footer
-  const response = NextResponse.next()
+  // Pasar x-is-vendor-portal como request header para que lo lean los Server Components
+  const requestHeaders = new Headers(req.headers)
   if (isVendorRoute) {
-    response.headers.set("x-is-vendor-portal", "1")
+    requestHeaders.set("x-is-vendor-portal", "1")
   }
-  return response
+  return NextResponse.next({ request: { headers: requestHeaders } })
 }
 
 export const config = {
-  matcher: ["/mi-tienda/:path*"],
+  matcher: ["/mi-tienda", "/mi-tienda/:path*"],
 }
