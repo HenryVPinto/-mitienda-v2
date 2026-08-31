@@ -161,6 +161,9 @@ const VendorsPage = () => {
     commission_rate: "",
   })
   const [editSaving, setEditSaving] = useState(false)
+  const [passwordVendorId, setPasswordVendorId] = useState<string | null>(null)
+  const [newPassword, setNewPassword] = useState("")
+  const [passwordSaving, setPasswordSaving] = useState(false)
   const [form, setForm] = useState<CreateForm>({
     name: "",
     handle: "",
@@ -319,6 +322,33 @@ const VendorsPage = () => {
       fetchVendors()
     } catch {
       toast.error("Error al actualizar vendor")
+    }
+  }
+
+  const handleSetPassword = async (vendorId: string) => {
+    if (newPassword.length < 8) {
+      toast.error("La contraseña debe tener al menos 8 caracteres")
+      return
+    }
+    setPasswordSaving(true)
+    try {
+      const res = await fetch(`${base}/admin/vendors/${vendorId}/set-password`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: newPassword }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.message || "Error al guardar")
+      }
+      toast.success("Contraseña guardada. El vendor ya puede ingresar al portal.")
+      setPasswordVendorId(null)
+      setNewPassword("")
+    } catch (e: any) {
+      toast.error(e.message || "Error al guardar contraseña")
+    } finally {
+      setPasswordSaving(false)
     }
   }
 
@@ -692,28 +722,66 @@ const VendorsPage = () => {
                     {new Date(vendor.created_at).toLocaleDateString("es-GT")}
                   </Table.Cell>
                   <Table.Cell>
-                    <div className="flex items-center gap-x-2 justify-end">
-                      <Button
-                        size="small"
-                        variant="secondary"
-                        onClick={() => handleStartEdit(vendor)}
-                      >
-                        Editar
-                      </Button>
-                      <Button
-                        size="small"
-                        variant={vendor.metadata?.status === "pending" ? "primary" : "secondary"}
-                        onClick={() => handleToggle(vendor)}
-                      >
-                        {vendor.is_active ? "Desactivar" : vendor.metadata?.status === "pending" ? "Aprobar" : "Activar"}
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="danger"
-                        onClick={() => handleDelete(vendor)}
-                      >
-                        Eliminar
-                      </Button>
+                    <div className="flex flex-col gap-y-2 items-end">
+                      <div className="flex items-center gap-x-2">
+                        <Button
+                          size="small"
+                          variant="secondary"
+                          onClick={() => handleStartEdit(vendor)}
+                        >
+                          Editar
+                        </Button>
+                        <Button
+                          size="small"
+                          variant={vendor.metadata?.status === "pending" ? "primary" : "secondary"}
+                          onClick={() => handleToggle(vendor)}
+                        >
+                          {vendor.is_active ? "Desactivar" : vendor.metadata?.status === "pending" ? "Aprobar" : "Activar"}
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="secondary"
+                          onClick={() => {
+                            setPasswordVendorId(passwordVendorId === vendor.id ? null : vendor.id)
+                            setNewPassword("")
+                          }}
+                        >
+                          🔑 Acceso Portal
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="danger"
+                          onClick={() => handleDelete(vendor)}
+                        >
+                          Eliminar
+                        </Button>
+                      </div>
+                      {passwordVendorId === vendor.id && (
+                        <div className="flex items-center gap-x-2 bg-ui-bg-subtle border border-ui-border-base rounded-lg px-3 py-2">
+                          <Input
+                            size="small"
+                            type="password"
+                            placeholder="Nueva contraseña (mín. 8 caracteres)"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            className="w-56"
+                          />
+                          <Button
+                            size="small"
+                            isLoading={passwordSaving}
+                            onClick={() => handleSetPassword(vendor.id)}
+                          >
+                            Guardar
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="secondary"
+                            onClick={() => { setPasswordVendorId(null); setNewPassword("") }}
+                          >
+                            Cancelar
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </Table.Cell>
                 </Table.Row>
