@@ -14,6 +14,7 @@ const MtVendor = model
     country_code: model.text().default("GT"),
     is_active: model.boolean().default(true),
     commission_rate: model.number().nullable(),
+    password_hash: model.text().nullable(),
     metadata: model.json().nullable(),
   })
   .indexes([{ on: ["handle"], unique: true, where: "deleted_at IS NULL" }])

@@ -9,7 +9,7 @@
     "postinstall": "patch-package",
     "dev": "medusa develop",
     "build": "medusa build",
-    "start": "medusa start",
+    "start": "medusa db:migrate && medusa start",
     "db:migrate": "medusa db:migrate",
     "db:generate": "medusa db:generate --modules",
     "db:rollback": "medusa db:rollback",
