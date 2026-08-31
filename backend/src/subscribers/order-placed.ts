@@ -133,7 +133,6 @@ export default async function orderPlacedHandler({
   const orderAdminUrl = `${adminBackendUrl}/app/orders/${order.id}`
 
   const itemCount = items.reduce((sum: number, i: any) => sum + i.quantity, 0)
-  const address = order.shipping_address
   const customerName = address ? `${address.first_name} ${address.last_name}`.trim() : order.email
   const location = address
     ? [address.city, address.province].filter(Boolean).join(", ")
