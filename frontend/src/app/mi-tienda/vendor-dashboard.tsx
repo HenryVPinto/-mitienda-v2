@@ -1,6 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import type { VendorInfo } from "@/lib/vendor-api"
 import Image from "next/image"
 
@@ -53,14 +54,14 @@ export default function VendorDashboard({ vendor }: Props) {
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-1">
           {navItems.map((item) => (
-            <a
+            <Link
               key={item.href}
               href={item.href}
               className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition-colors"
             >
               <span>{item.icon}</span>
               <span>{item.label}</span>
-            </a>
+            </Link>
           ))}
         </nav>
 
@@ -88,7 +89,7 @@ export default function VendorDashboard({ vendor }: Props) {
 
           {/* Cards de acceso rápido */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <a
+            <Link
               href="/mi-tienda/productos"
               className="bg-white rounded-2xl border border-gray-100 p-6 hover:border-blue-200 hover:shadow-sm transition group"
             >
@@ -99,9 +100,9 @@ export default function VendorDashboard({ vendor }: Props) {
               <p className="text-sm text-gray-500 mt-1">
                 Ver, crear y editar tu catálogo
               </p>
-            </a>
+            </Link>
 
-            <a
+            <Link
               href="/mi-tienda/perfil"
               className="bg-white rounded-2xl border border-gray-100 p-6 hover:border-blue-200 hover:shadow-sm transition group"
             >
@@ -112,7 +113,7 @@ export default function VendorDashboard({ vendor }: Props) {
               <p className="text-sm text-gray-500 mt-1">
                 Actualizar logo, descripción y contacto
               </p>
-            </a>
+            </Link>
           </div>
 
           {/* Aviso de moderación */}
