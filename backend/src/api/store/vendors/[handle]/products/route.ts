@@ -21,28 +21,40 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.status(404).json({ type: "not_found", message: "Vendor not found" })
   }
 
-  const pgClient = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
-  const { rows } = await pgClient.raw(
-    `SELECT product_id FROM product_product_vendor_mt_vendor WHERE mt_vendor_id = ? AND deleted_at IS NULL`,
-    [vendor.id]
-  )
-  const productIds: string[] = rows.map((r: any) => r.product_id).filter(Boolean)
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  if (!productIds.length) {
-    return res.json({ products: [], count: 0, limit, offset })
+  // Step 1: get all product IDs linked to this vendor via query.graph
+  const { data: vendors } = await query.graph({
+    entity: "mt_vendor",
+    fields: ["id", "product.id", "product.status"],
+    filters: { id: vendor.id },
+  })
+
+  const allLinkedProducts: Array<{ id: string; status: string }> = Array.isArray(vendors[0]?.product)
+    ? vendors[0].product
+    : vendors[0]?.product
+      ? [vendors[0].product]
+      : []
+
+  const publishedIds = allLinkedProducts
+    .filter((p) => p.status === "published")
+    .map((p) => p.id)
+
+  if (!publishedIds.length) {
+    return res.json({ products: [], count: publishedIds.length, limit, offset })
   }
 
-  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  // Step 2: fetch full product data with pagination
   const { data: products, metadata } = await query.graph({
     entity: "product",
     fields: PRODUCT_FIELDS,
-    filters: { id: productIds },
+    filters: { id: publishedIds },
     pagination: { take: limit, skip: offset },
   })
 
   return res.json({
     products,
-    count: metadata?.count ?? products.length,
+    count: metadata?.count ?? publishedIds.length,
     limit,
     offset,
   })
