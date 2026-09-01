@@ -22,7 +22,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     filters: { id: vendor.vendor_id },
   })
 
-  const products = vendors[0]?.product ?? []
+  const raw = vendors[0]?.product
+  const products = Array.isArray(raw) ? raw : raw ? [raw] : []
   return res.json({ products })
 }
 
