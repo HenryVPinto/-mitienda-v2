@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -26,8 +26,12 @@ export interface VendorProduct {
   options: ProductOption[]
   variants: ProductVariant[]
   mt_brand?: { id: string; name: string } | null
+  mt_product_extension?: { id?: string; weight?: number | null } | null
 }
 type Product = VendorProduct
+
+interface Brand { id: string; name: string }
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getGtqPrice(variant: ProductVariant): number | null {
@@ -35,7 +39,7 @@ function getGtqPrice(variant: ProductVariant): number | null {
   return p ? p.amount : null
 }
 
-// ── Section: Info básica ──────────────────────────────────────────────────────
+// ── Section: Info básica + Marca + Peso ───────────────────────────────────────
 
 function BasicInfoSection({
   product,
@@ -46,24 +50,53 @@ function BasicInfoSection({
 }) {
   const [title, setTitle] = useState(product.title)
   const [description, setDescription] = useState(product.description ?? "")
+  const [weight, setWeight] = useState(
+    product.mt_product_extension?.weight?.toString() ?? ""
+  )
+  const [brandId, setBrandId] = useState(product.mt_brand?.id ?? "")
+  const [brands, setBrands] = useState<Brand[]>([])
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState("")
+
+  useEffect(() => {
+    fetch("/api/vendor/brands")
+      .then((r) => r.json())
+      .then((d) => setBrands(d.brands ?? []))
+      .catch(() => {})
+  }, [])
 
   const save = async () => {
     setSaving(true)
     setMsg("")
     try {
+      const body: Record<string, unknown> = {
+        title: title.trim(),
+        description: description.trim() || null,
+      }
+      if (brandId !== (product.mt_brand?.id ?? "")) {
+        body.brand_id = brandId || null
+      }
+      const weightNum = weight.trim() ? Number(weight.trim()) : null
+      const currentWeight = product.mt_product_extension?.weight ?? null
+      if (weightNum !== currentWeight) {
+        body.weight = weightNum
+      }
+
       const res = await fetch(`/api/vendor/products/${product.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim() || null,
-        }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) throw new Error((await res.json()).message)
+
+      const selectedBrand = brands.find((b) => b.id === brandId) ?? null
+      onSaved({
+        title: title.trim(),
+        description: description.trim() || null,
+        mt_brand: selectedBrand,
+        mt_product_extension: weightNum !== null ? { weight: weightNum } : null,
+      })
       setMsg("Guardado")
-      onSaved({ title: title.trim(), description: description.trim() || null })
       setTimeout(() => setMsg(""), 2000)
     } catch (err) {
       setMsg(err instanceof Error ? err.message : "Error al guardar")
@@ -97,14 +130,34 @@ function BasicInfoSection({
         />
       </div>
 
-      {product.mt_brand?.name && (
+      <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Marca</label>
-          <p className="text-sm text-gray-600 bg-gray-50 px-3 py-2.5 rounded-lg border border-gray-200">
-            {product.mt_brand.name}
-          </p>
+          <select
+            value={brandId}
+            onChange={(e) => setBrandId(e.target.value)}
+            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          >
+            <option value="">Sin marca</option>
+            {brands.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
         </div>
-      )}
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Peso (lb)</label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={weight}
+            onChange={(e) => setWeight(e.target.value)}
+            placeholder="0.00"
+            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      </div>
 
       <div className="flex items-center gap-3 pt-1">
         <button
@@ -153,7 +206,6 @@ function ImagesSection({
       const url: string = uploadData.files?.[0]?.url
       if (!url) throw new Error("No se obtuvo URL del archivo")
 
-      // Set as thumbnail if none, always add to images array
       const isThumbnail = !product.thumbnail
       const patchBody: Record<string, unknown> = { images: [{ url }] }
       if (isThumbnail) patchBody.thumbnail = url
@@ -165,9 +217,7 @@ function ImagesSection({
       })
       if (!patchRes.ok) throw new Error("Error al guardar imagen en el producto")
 
-      onSaved({
-        thumbnail: isThumbnail ? url : product.thumbnail,
-      })
+      onSaved({ thumbnail: isThumbnail ? url : product.thumbnail })
       setMsg("Imagen subida")
       setTimeout(() => setMsg(""), 3000)
     } catch (err) {
@@ -188,14 +238,9 @@ function ImagesSection({
       <h2 className="font-semibold text-gray-900 text-base mb-4">Imágenes</h2>
 
       <div className="flex items-start gap-4">
-        {/* Thumbnail preview */}
         <div className="w-24 h-24 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden shrink-0">
           {product.thumbnail ? (
-            <img
-              src={product.thumbnail}
-              alt="Thumbnail"
-              className="w-full h-full object-cover"
-            />
+            <img src={product.thumbnail} alt="Thumbnail" className="w-full h-full object-cover" />
           ) : (
             <span className="text-3xl">🖼️</span>
           )}
@@ -204,29 +249,19 @@ function ImagesSection({
         <div className="flex-1">
           <p className="text-sm text-gray-600 mb-3">
             {product.thumbnail
-              ? "Foto principal del producto. Puedes reemplazarla subiendo una nueva."
+              ? "Foto principal. Sube una nueva para reemplazarla."
               : "Sube la foto principal de tu producto."}
           </p>
 
           <label className={`inline-flex items-center gap-2 cursor-pointer px-4 py-2 rounded-lg text-sm font-medium transition ${
-            uploading
-              ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-              : "bg-blue-600 text-white hover:bg-blue-700"
+            uploading ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-blue-600 text-white hover:bg-blue-700"
           }`}>
             {uploading ? "Subiendo..." : "📷 Subir foto"}
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              disabled={uploading}
-              onChange={handleChange}
-            />
+            <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={handleChange} />
           </label>
 
           {msg && (
-            <p className={`mt-2 text-sm ${msg.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>
-              {msg}
-            </p>
+            <p className={`mt-2 text-sm ${msg.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>{msg}</p>
           )}
           <p className="mt-2 text-xs text-gray-400">JPG, PNG o WEBP. Máximo 5 MB.</p>
         </div>
@@ -255,10 +290,7 @@ function OptionsSection({
 
   const addOption = async () => {
     const t = optTitle.trim()
-    const vals = optValues
-      .split(",")
-      .map((v) => v.trim())
-      .filter(Boolean)
+    const vals = optValues.split(",").map((v) => v.trim()).filter(Boolean)
     if (!t || vals.length === 0) {
       setError("Nombre y al menos un valor son requeridos")
       return
@@ -288,9 +320,7 @@ function OptionsSection({
     if (!confirm("¿Eliminar esta opción y sus valores?")) return
     setDeletingId(optionId)
     try {
-      const res = await fetch(`/api/vendor/products/${productId}/options/${optionId}`, {
-        method: "DELETE",
-      })
+      const res = await fetch(`/api/vendor/products/${productId}/options/${optionId}`, { method: "DELETE" })
       if (!res.ok) throw new Error("Error al eliminar")
       onOptionsChange(options.filter((o) => o.id !== optionId))
     } catch {
@@ -304,10 +334,7 @@ function OptionsSection({
     <div className="bg-white rounded-2xl border border-gray-100 p-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-semibold text-gray-900 text-base">Opciones</h2>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-        >
+        <button onClick={() => setShowForm(!showForm)} className="text-sm text-blue-600 hover:text-blue-800 font-medium">
           {showForm ? "Cancelar" : "+ Agregar opción"}
         </button>
       </div>
@@ -326,9 +353,7 @@ function OptionsSection({
             <p className="text-sm font-medium text-gray-800">{opt.title}</p>
             <div className="flex flex-wrap gap-1.5 mt-1.5">
               {opt.values?.map((v) => (
-                <span key={v.id} className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-md">
-                  {v.value}
-                </span>
+                <span key={v.id} className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-md">{v.value}</span>
               ))}
             </div>
           </div>
@@ -355,9 +380,7 @@ function OptionsSection({
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Valores (separados por coma)
-            </label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Valores (separados por coma)</label>
             <input
               value={optValues}
               onChange={(e) => setOptValues(e.target.value)}
@@ -396,8 +419,8 @@ function VariantsSection({
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({})
   const [price, setPrice] = useState("")
   const [stock, setStock] = useState("0")
-  const [manageInventory] = useState(false)
-  const [colorHex, setColorHex] = useState("")
+  const [colorHex, setColorHex] = useState("#000000")
+  const [useColor, setUseColor] = useState(false)
   const [adding, setAdding] = useState(false)
   const [formError, setFormError] = useState("")
 
@@ -452,9 +475,7 @@ function VariantsSection({
     if (!confirm("¿Eliminar esta variante?")) return
     setDeletingId(variantId)
     try {
-      const res = await fetch(`/api/vendor/products/${productId}/variants/${variantId}`, {
-        method: "DELETE",
-      })
+      const res = await fetch(`/api/vendor/products/${productId}/variants/${variantId}`, { method: "DELETE" })
       if (!res.ok) throw new Error("Error al eliminar")
       onVariantsChange(variants.filter((v) => v.id !== variantId))
     } catch {
@@ -490,8 +511,8 @@ function VariantsSection({
           options: optionsPayload,
           price_gtq: price ? Number(price) : undefined,
           inventory_quantity: Number(stock),
-          manage_inventory: manageInventory,
-          color_hex: colorHex || undefined,
+          manage_inventory: false,
+          color_hex: useColor ? colorHex : undefined,
         }),
       })
       const data = await res.json()
@@ -500,7 +521,8 @@ function VariantsSection({
       setSelectedOptions({})
       setPrice("")
       setStock("0")
-      setColorHex("")
+      setColorHex("#000000")
+      setUseColor(false)
       setShowForm(false)
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Error al crear variante")
@@ -509,37 +531,27 @@ function VariantsSection({
     }
   }
 
-  const hasColorOption = options.some((o) =>
-    o.title.toLowerCase().includes("color")
-  )
-
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-semibold text-gray-900 text-base">Variantes</h2>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-        >
+        <button onClick={() => setShowForm(!showForm)} className="text-sm text-blue-600 hover:text-blue-800 font-medium">
           {showForm ? "Cancelar" : "+ Agregar variante"}
         </button>
       </div>
 
       {variants.length === 0 && !showForm ? (
         <p className="text-sm text-gray-400 italic">
-          Sin variantes. {options.length === 0
+          {options.length === 0
             ? "Agrega una opción primero, o crea una variante simple."
-            : "Agrega variantes para las combinaciones de tallas/colores."}
+            : "Agrega variantes para las combinaciones de opciones."}
         </p>
       ) : (
         <div className="space-y-2">
           {variants.map((variant) => {
             const inline = getInline(variant.id, variant)
             return (
-              <div
-                key={variant.id}
-                className="flex items-center gap-3 py-3 border-b border-gray-50 last:border-0"
-              >
+              <div key={variant.id} className="flex items-center gap-3 py-3 border-b border-gray-50 last:border-0">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-800 truncate">{variant.title}</p>
                   {variant.metadata?.color_hex && (
@@ -599,9 +611,7 @@ function VariantsSection({
               <label className="block text-xs font-medium text-gray-600 mb-1">{opt.title}</label>
               <select
                 value={selectedOptions[opt.id] ?? ""}
-                onChange={(e) =>
-                  setSelectedOptions((prev) => ({ ...prev, [opt.id]: e.target.value }))
-                }
+                onChange={(e) => setSelectedOptions((prev) => ({ ...prev, [opt.id]: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               >
                 <option value="">Selecciona {opt.title.toLowerCase()}</option>
@@ -637,17 +647,23 @@ function VariantsSection({
             </div>
           </div>
 
-          {hasColorOption && (
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Color hex (opcional, ej: #FF0000)
-              </label>
-              <div className="flex items-center gap-2">
+          <div>
+            <label className="flex items-center gap-2 text-xs font-medium text-gray-600 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={useColor}
+                onChange={(e) => setUseColor(e.target.checked)}
+                className="rounded"
+              />
+              Asignar color a esta variante
+            </label>
+            {useColor && (
+              <div className="flex items-center gap-2 mt-2">
                 <input
                   type="color"
-                  value={colorHex || "#000000"}
+                  value={colorHex}
                   onChange={(e) => setColorHex(e.target.value)}
-                  className="w-8 h-8 rounded cursor-pointer border border-gray-300"
+                  className="w-9 h-9 rounded cursor-pointer border border-gray-300 p-0.5"
                 />
                 <input
                   type="text"
@@ -657,8 +673,8 @@ function VariantsSection({
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {formError && <p className="text-xs text-red-600">{formError}</p>}
 
@@ -677,11 +693,7 @@ function VariantsSection({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function ProductEditor({
-  product: initialProduct,
-}: {
-  product: Product
-}) {
+export default function ProductEditor({ product: initialProduct }: { product: Product }) {
   const [product, setProduct] = useState<Product>(initialProduct)
 
   const updateProduct = useCallback((updates: Partial<Product>) => {
@@ -698,19 +710,9 @@ export default function ProductEditor({
 
   return (
     <div className="space-y-4">
-      <BasicInfoSection
-        product={product}
-        onSaved={updateProduct}
-      />
-      <ImagesSection
-        product={product}
-        onSaved={updateProduct}
-      />
-      <OptionsSection
-        productId={product.id}
-        options={product.options ?? []}
-        onOptionsChange={updateOptions}
-      />
+      <BasicInfoSection product={product} onSaved={updateProduct} />
+      <ImagesSection product={product} onSaved={updateProduct} />
+      <OptionsSection productId={product.id} options={product.options ?? []} onOptionsChange={updateOptions} />
       <VariantsSection
         productId={product.id}
         options={product.options ?? []}

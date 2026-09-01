@@ -1,5 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { BRAND_MODULE } from "../../../../modules/brand"
+import { PRODUCT_EXTENSION_MODULE } from "../../../../modules/product-extension"
 
 async function verifyOwnership(
   req: MedusaRequest,
@@ -51,6 +53,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       "mt_vendor.id",
       "mt_brand.id",
       "mt_brand.name",
+      "mt_product_extension.id",
       "mt_product_extension.wholesale_price",
       "mt_product_extension.weight",
       "mt_product_extension.description_html",
@@ -77,7 +80,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
 export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params
-  const { title, description, thumbnail, images } = req.body as any
+  const { title, description, thumbnail, images, brand_id, weight } = req.body as any
 
   const owned = await verifyOwnership(req, id)
   if (!owned) {
@@ -85,14 +88,66 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   const productModule = req.scope.resolve(Modules.PRODUCT)
+  const remoteLink = req.scope.resolve(ContainerRegistrationKeys.REMOTE_LINK)
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
+  // Basic product fields
   const updateData: any = {}
   if (title !== undefined) updateData.title = title
   if (description !== undefined) updateData.description = description
   if (thumbnail !== undefined) updateData.thumbnail = thumbnail
   if (images !== undefined) updateData.images = images
 
-  const product = await productModule.updateProducts(id, updateData)
+  if (Object.keys(updateData).length > 0) {
+    await productModule.updateProducts(id, updateData)
+  }
 
-  return res.json({ product })
+  // Brand link
+  if (brand_id !== undefined) {
+    const { data: pData } = await query.graph({
+      entity: "product",
+      fields: ["id", "mt_brand.id"],
+      filters: { id },
+    })
+    const cur = pData[0] as any
+    const curBrand = Array.isArray(cur?.mt_brand) ? cur.mt_brand[0] : cur?.mt_brand
+    if (curBrand?.id) {
+      await remoteLink.dismiss({
+        [Modules.PRODUCT]: { product_id: id },
+        [BRAND_MODULE]: { mt_brand_id: curBrand.id },
+      }).catch(() => {})
+    }
+    if (brand_id) {
+      await remoteLink.create({
+        [Modules.PRODUCT]: { product_id: id },
+        [BRAND_MODULE]: { mt_brand_id: brand_id },
+      })
+    }
+  }
+
+  // Weight via product extension
+  if (weight !== undefined) {
+    const extensionService: any = req.scope.resolve(PRODUCT_EXTENSION_MODULE)
+    const { data: pData } = await query.graph({
+      entity: "product",
+      fields: ["id", "mt_product_extension.id"],
+      filters: { id },
+    })
+    const cur = pData[0] as any
+    const ext = Array.isArray(cur?.mt_product_extension)
+      ? cur.mt_product_extension[0]
+      : cur?.mt_product_extension
+
+    if (ext?.id) {
+      await extensionService.updateMtProductExtensions([{ id: ext.id, weight }])
+    } else {
+      const newExt = await extensionService.createMtProductExtensions({ weight })
+      await remoteLink.create({
+        [Modules.PRODUCT]: { product_id: id },
+        [PRODUCT_EXTENSION_MODULE]: { mt_product_extension_id: newExt.id },
+      })
+    }
+  }
+
+  return res.json({ success: true })
 }
