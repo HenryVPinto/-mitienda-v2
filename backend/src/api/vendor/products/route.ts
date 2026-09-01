@@ -7,23 +7,37 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const vendor = (req as any).vendor
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
+  // Step 1: get product IDs linked to this vendor
   const { data: vendors } = await query.graph({
     entity: "mt_vendor",
-    fields: [
-      "id",
-      "product.id",
-      "product.title",
-      "product.handle",
-      "product.status",
-      "product.thumbnail",
-      "product.variants.id",
-      "product.variants.prices.*",
-    ],
+    fields: ["id", "product.id"],
     filters: { id: vendor.vendor_id },
   })
 
-  const raw = vendors[0]?.product
-  const products = Array.isArray(raw) ? raw : raw ? [raw] : []
+  const rawLinked = vendors[0]?.product
+  const linked = Array.isArray(rawLinked) ? rawLinked : rawLinked ? [rawLinked] : []
+
+  if (!linked.length) {
+    return res.json({ products: [] })
+  }
+
+  const productIds = linked.map((p: { id: string }) => p.id)
+
+  // Step 2: fetch full product data (variants + prices) directly from product entity
+  const { data: products } = await query.graph({
+    entity: "product",
+    fields: [
+      "id",
+      "title",
+      "handle",
+      "status",
+      "thumbnail",
+      "variants.id",
+      "variants.prices.*",
+    ],
+    filters: { id: productIds },
+  })
+
   return res.json({ products })
 }
 
