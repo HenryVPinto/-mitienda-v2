@@ -7,45 +7,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const vendor = (req as any).vendor
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  // Step 1: get product IDs linked to this vendor
-  const { data: vendors } = await query.graph({
-    entity: "mt_vendor",
-    fields: ["id", "product.id"],
-    filters: { id: vendor.vendor_id },
-  })
-
-  const rawLinked = vendors[0]?.product
-  const linked = Array.isArray(rawLinked) ? rawLinked : rawLinked ? [rawLinked] : []
-
-  if (!linked.length) {
-    // Extra debug: check from product side if any draft products link back to this vendor
-    const { data: draftCheck } = await query.graph({
-      entity: "product",
-      fields: ["id", "title", "status", "mt_vendor.id"],
-      filters: { status: ["draft", "published", "proposed"] },
-      pagination: { take: 20 },
-    }).catch(() => ({ data: [] }))
-
-    return res.json({
-      products: [],
-      _debug: {
-        vendor_id: vendor.vendor_id,
-        vendors_found: vendors.length,
-        raw_product: rawLinked ?? null,
-        all_products_sample: (draftCheck as any[]).map((p: any) => ({
-          id: p.id,
-          title: p.title,
-          status: p.status,
-          mt_vendor_id: Array.isArray(p.mt_vendor) ? p.mt_vendor[0]?.id : p.mt_vendor?.id,
-        })),
-      },
-    })
-  }
-
-  const productIds = linked.map((p: { id: string }) => p.id)
-
-  // Step 2: fetch full product data (variants + prices) directly from product entity
-  const { data: products } = await query.graph({
+  // Query from product side (includes drafts) — mt_vendor→product traversal
+  // skips drafts due to Medusa's default published-only scope on that direction.
+  const { data: allProducts } = await query.graph({
     entity: "product",
     fields: [
       "id",
@@ -55,11 +19,17 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       "thumbnail",
       "variants.id",
       "variants.prices.*",
+      "mt_vendor.id",
     ],
-    filters: { id: productIds },
+    pagination: { take: 500 },
   })
 
-  return res.json({ products, _debug: { vendor_id: vendor.vendor_id, linked_ids: productIds } })
+  const products = allProducts.filter((p: any) => {
+    const v = Array.isArray(p.mt_vendor) ? p.mt_vendor[0] : p.mt_vendor
+    return v?.id === vendor.vendor_id
+  })
+
+  return res.json({ products })
 }
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
