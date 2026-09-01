@@ -42,12 +42,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const productModule = req.scope.resolve(Modules.PRODUCT)
 
-  const [option] = await productModule.createProductOptions([
-    {
-      product_id: id,
-      title,
-      values: values as string[],
-    },
+  // product_id no está en el tipo oficial pero Medusa sí lo acepta en runtime
+  const [option] = await (productModule as any).createProductOptions([
+    { product_id: id, title, values },
   ])
 
   return res.status(201).json({ option })
