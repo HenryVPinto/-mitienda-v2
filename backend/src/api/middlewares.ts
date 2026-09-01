@@ -77,5 +77,9 @@ export default defineMiddlewares({
       matcher: "/vendor/uploads*",
       middlewares: [vendorAuth],
     },
+    {
+      matcher: "/vendor/profile*",
+      middlewares: [vendorAuth],
+    },
   ],
 })
