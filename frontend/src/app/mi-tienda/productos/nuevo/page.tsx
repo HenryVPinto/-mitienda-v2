@@ -1,5 +1,6 @@
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
+import Link from "next/link"
 import NewProductForm from "./new-product-form"
 import VendorSidebar from "../../vendor-sidebar"
 
@@ -33,9 +34,9 @@ export default async function NuevoProductoPage() {
       <main className="flex-1 p-8">
         <div className="max-w-2xl">
           <div className="mb-6">
-            <a href="/mi-tienda/productos" className="text-sm text-blue-600 hover:underline">
+            <Link href="/mi-tienda/productos" className="text-sm text-blue-600 hover:underline">
               ← Mis productos
-            </a>
+            </Link>
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-6">Nuevo producto</h1>
           <NewProductForm />

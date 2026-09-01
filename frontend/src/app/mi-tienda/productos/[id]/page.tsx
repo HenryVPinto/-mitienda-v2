@@ -1,12 +1,20 @@
 import { cookies } from "next/headers"
 import { redirect, notFound } from "next/navigation"
+import Link from "next/link"
 import VendorSidebar from "../../vendor-sidebar"
 import ProductEditor from "./product-editor"
+import type { VendorInfo } from "@/lib/vendor-api"
+import type { VendorProduct } from "./product-editor"
 
 const BACKEND = process.env.NEXT_PUBLIC_MEDUSA_URL!
 const VENDOR_COOKIE = "mt_vendor_token"
 
-async function getData(productId: string): Promise<{ vendor: any; product: any } | { notFound: true } | null> {
+type GetDataResult =
+  | { vendor: VendorInfo; product: VendorProduct }
+  | { notFound: true }
+  | null
+
+async function getData(productId: string): Promise<GetDataResult> {
   const cookieStore = await cookies()
   const token = cookieStore.get(VENDOR_COOKIE)?.value
   if (!token) return null
@@ -44,9 +52,9 @@ export default async function EditProductPage({
   const data = await getData(id)
 
   if (!data) redirect("/mi-tienda/login")
-  if ((data as any).notFound) notFound()
+  if ("notFound" in data) notFound()
 
-  const { vendor, product } = data as any
+  const { vendor, product } = data
 
   return (
     <div className="min-h-screen flex bg-gray-50">
@@ -54,9 +62,9 @@ export default async function EditProductPage({
       <main className="flex-1 p-8 overflow-auto">
         <div className="max-w-3xl">
           <div className="mb-6">
-            <a href="/mi-tienda/productos" className="text-sm text-blue-600 hover:underline">
+            <Link href="/mi-tienda/productos" className="text-sm text-blue-600 hover:underline">
               ← Mis productos
-            </a>
+            </Link>
           </div>
           <div className="flex items-center gap-3 mb-6">
             <h1 className="text-2xl font-bold text-gray-900">{product.title}</h1>

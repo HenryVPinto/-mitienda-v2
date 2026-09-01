@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 
 export default function NewProductForm() {
@@ -27,8 +28,8 @@ export default function NewProductForm() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.message ?? "Error al crear el producto")
       router.push(`/mi-tienda/productos/${data.product.id}`)
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al crear el producto")
     } finally {
       setSaving(false)
     }
@@ -76,9 +77,9 @@ export default function NewProductForm() {
         >
           {saving ? "Creando..." : "Crear producto"}
         </button>
-        <a href="/mi-tienda/productos" className="text-sm text-gray-500 hover:text-gray-700">
+        <Link href="/mi-tienda/productos" className="text-sm text-gray-500 hover:text-gray-700">
           Cancelar
-        </a>
+        </Link>
       </div>
     </form>
   )

@@ -17,7 +17,7 @@ interface ProductVariant {
   prices: VariantPrice[]
   options: OptionValue[]
 }
-interface Product {
+export interface VendorProduct {
   id: string
   title: string
   description: string | null
@@ -27,6 +27,7 @@ interface Product {
   variants: ProductVariant[]
   mt_brand?: { id: string; name: string } | null
 }
+type Product = VendorProduct
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getGtqPrice(variant: ProductVariant): number | null {
@@ -64,8 +65,8 @@ function BasicInfoSection({
       setMsg("Guardado")
       onSaved({ title: title.trim(), description: description.trim() || null })
       setTimeout(() => setMsg(""), 2000)
-    } catch (err: any) {
-      setMsg(err.message)
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "Error al guardar")
     } finally {
       setSaving(false)
     }
@@ -165,8 +166,8 @@ function OptionsSection({
       setOptTitle("")
       setOptValues("")
       setShowForm(false)
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al agregar opción")
     } finally {
       setAdding(false)
     }
@@ -284,7 +285,7 @@ function VariantsSection({
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({})
   const [price, setPrice] = useState("")
   const [stock, setStock] = useState("0")
-  const [manageInventory, setManageInventory] = useState(false)
+  const [manageInventory] = useState(false)
   const [colorHex, setColorHex] = useState("")
   const [adding, setAdding] = useState(false)
   const [formError, setFormError] = useState("")
@@ -329,8 +330,8 @@ function VariantsSection({
           : variant.prices,
       }
       onVariantsChange(variants.map((v) => (v.id === variant.id ? updatedVariant : v)))
-    } catch (err: any) {
-      alert(err.message)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error al guardar variante")
     } finally {
       setSavingId(null)
     }
@@ -387,8 +388,8 @@ function VariantsSection({
       setStock("0")
       setColorHex("")
       setShowForm(false)
-    } catch (err: any) {
-      setFormError(err.message)
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Error al crear variante")
     } finally {
       setAdding(false)
     }

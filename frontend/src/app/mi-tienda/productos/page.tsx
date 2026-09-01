@@ -32,11 +32,14 @@ async function getVendorAndProducts() {
   }
 }
 
-function priceRange(variants: any[]): string {
+interface VariantPrice { currency_code: string; amount: number; price_list_id: string | null }
+interface VariantRow { prices?: VariantPrice[] }
+
+function priceRange(variants: VariantRow[]): string {
   const prices = variants
-    .flatMap((v: any) => v.prices ?? [])
-    .filter((p: any) => p.currency_code === "gtq" && !p.price_list_id)
-    .map((p: any) => p.amount)
+    .flatMap((v) => v.prices ?? [])
+    .filter((p) => p.currency_code === "gtq" && !p.price_list_id)
+    .map((p) => p.amount)
 
   if (!prices.length) return "Sin precio"
   const min = Math.min(...prices)
@@ -109,7 +112,7 @@ export default async function ProductosPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {products.map((product: any) => (
+                  {products.map((product: { id: string; title: string; status: string; thumbnail: string | null; variants: VariantRow[] }) => (
                     <tr key={product.id} className="hover:bg-gray-50 transition">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">

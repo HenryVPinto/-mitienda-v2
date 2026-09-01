@@ -40,8 +40,8 @@ export default function ProfileForm({ profile }: { profile: VendorProfile }) {
       if (!res.ok) throw new Error((await res.json()).message)
       setMsg("Perfil actualizado")
       setTimeout(() => setMsg(""), 3000)
-    } catch (err: any) {
-      setMsg(err.message ?? "Error al guardar")
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "Error al guardar")
     } finally {
       setSaving(false)
     }
