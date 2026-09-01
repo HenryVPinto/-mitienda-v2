@@ -77,7 +77,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
 export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params
-  const { title, description } = req.body as any
+  const { title, description, thumbnail, images } = req.body as any
 
   const owned = await verifyOwnership(req, id)
   if (!owned) {
@@ -89,6 +89,8 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
   const updateData: any = {}
   if (title !== undefined) updateData.title = title
   if (description !== undefined) updateData.description = description
+  if (thumbnail !== undefined) updateData.thumbnail = thumbnail
+  if (images !== undefined) updateData.images = images
 
   const product = await productModule.updateProducts(id, updateData)
 

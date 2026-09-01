@@ -1,6 +1,9 @@
 import { defineMiddlewares, authenticate } from "@medusajs/framework/http"
 import type { MedusaRequest, MedusaResponse, MedusaNextFunction } from "@medusajs/framework/http"
 import { verifyVendorToken, VENDOR_COOKIE } from "../utils/vendor-auth"
+import multer from "multer"
+
+const upload = multer({ storage: multer.memoryStorage() })
 
 // Middleware que valida el JWT de vendor y adjunta el payload a req.vendor
 function vendorAuth(req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) {
@@ -74,8 +77,9 @@ export default defineMiddlewares({
       middlewares: [vendorAuth],
     },
     {
-      matcher: "/vendor/uploads*",
-      middlewares: [vendorAuth],
+      method: ["POST"],
+      matcher: "/vendor/uploads",
+      middlewares: [vendorAuth, upload.array("files") as any],
     },
     {
       matcher: "/vendor/profile*",

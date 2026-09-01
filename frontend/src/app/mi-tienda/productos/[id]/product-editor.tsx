@@ -124,6 +124,117 @@ function BasicInfoSection({
   )
 }
 
+// ── Section: Imágenes ─────────────────────────────────────────────────────────
+
+function ImagesSection({
+  product,
+  onSaved,
+}: {
+  product: Product
+  onSaved: (updates: Partial<Product>) => void
+}) {
+  const [uploading, setUploading] = useState(false)
+  const [msg, setMsg] = useState("")
+
+  const uploadFile = async (file: File) => {
+    setUploading(true)
+    setMsg("")
+    try {
+      const formData = new FormData()
+      formData.append("files", file)
+
+      const uploadRes = await fetch("/api/vendor/uploads", {
+        method: "POST",
+        body: formData,
+      })
+      const uploadData = await uploadRes.json()
+      if (!uploadRes.ok) throw new Error(uploadData.message ?? "Error al subir imagen")
+
+      const url: string = uploadData.files?.[0]?.url
+      if (!url) throw new Error("No se obtuvo URL del archivo")
+
+      // Set as thumbnail if none, always add to images array
+      const isThumbnail = !product.thumbnail
+      const patchBody: Record<string, unknown> = { images: [{ url }] }
+      if (isThumbnail) patchBody.thumbnail = url
+
+      const patchRes = await fetch(`/api/vendor/products/${product.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patchBody),
+      })
+      if (!patchRes.ok) throw new Error("Error al guardar imagen en el producto")
+
+      onSaved({
+        thumbnail: isThumbnail ? url : product.thumbnail,
+      })
+      setMsg("Imagen subida")
+      setTimeout(() => setMsg(""), 3000)
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "Error al subir imagen")
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) uploadFile(file)
+    e.target.value = ""
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-6">
+      <h2 className="font-semibold text-gray-900 text-base mb-4">Imágenes</h2>
+
+      <div className="flex items-start gap-4">
+        {/* Thumbnail preview */}
+        <div className="w-24 h-24 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden shrink-0">
+          {product.thumbnail ? (
+            <img
+              src={product.thumbnail}
+              alt="Thumbnail"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span className="text-3xl">🖼️</span>
+          )}
+        </div>
+
+        <div className="flex-1">
+          <p className="text-sm text-gray-600 mb-3">
+            {product.thumbnail
+              ? "Foto principal del producto. Puedes reemplazarla subiendo una nueva."
+              : "Sube la foto principal de tu producto."}
+          </p>
+
+          <label className={`inline-flex items-center gap-2 cursor-pointer px-4 py-2 rounded-lg text-sm font-medium transition ${
+            uploading
+              ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+              : "bg-blue-600 text-white hover:bg-blue-700"
+          }`}>
+            {uploading ? "Subiendo..." : "📷 Subir foto"}
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              disabled={uploading}
+              onChange={handleChange}
+            />
+          </label>
+
+          {msg && (
+            <p className={`mt-2 text-sm ${msg.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>
+              {msg}
+            </p>
+          )}
+          <p className="mt-2 text-xs text-gray-400">JPG, PNG o WEBP. Máximo 5 MB.</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Section: Opciones ─────────────────────────────────────────────────────────
 
 function OptionsSection({
@@ -588,6 +699,10 @@ export default function ProductEditor({
   return (
     <div className="space-y-4">
       <BasicInfoSection
+        product={product}
+        onSaved={updateProduct}
+      />
+      <ImagesSection
         product={product}
         onSaved={updateProduct}
       />
