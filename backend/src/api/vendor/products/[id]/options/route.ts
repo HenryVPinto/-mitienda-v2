@@ -46,7 +46,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     {
       product_id: id,
       title,
-      values: values.map((v: string) => ({ value: v })),
+      values: values as string[],
     },
   ])
 

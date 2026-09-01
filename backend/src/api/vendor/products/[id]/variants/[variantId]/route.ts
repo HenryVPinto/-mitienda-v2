@@ -47,126 +47,51 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
     updateData.metadata = { color_hex }
   }
 
-  const [variant] = await productModule.updateProductVariants([
-    { id: variantId, ...updateData },
-  ])
+  const variant = await productModule.updateProductVariants(variantId, updateData)
 
   if (price_gtq !== undefined && price_gtq !== null) {
     const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
     const pricingModule = req.scope.resolve(Modules.PRICING)
+    const remoteLink = req.scope.resolve(ContainerRegistrationKeys.REMOTE_LINK)
 
-    const { data: variants } = await query.graph({
+    // Obtener price_set actual del variant
+    const { data: variantData } = await query.graph({
       entity: "product_variant",
-      fields: ["id", "prices.*"],
+      fields: ["id", "price_set.id"],
       filters: { id: variantId },
     })
 
-    const variantWithPrices = variants[0]
-    const prices = variantWithPrices?.prices ?? []
-    const gtqPrice = prices.find(
-      (p: any) => p.currency_code === "gtq" && !p.price_list_id
-    )
+    const priceSetRaw = variantData[0]?.price_set
+    const existingPriceSetId = Array.isArray(priceSetRaw)
+      ? priceSetRaw[0]?.id
+      : priceSetRaw?.id
 
-    if (gtqPrice) {
-      // Obtener el price_set_id vinculado a esta variante
-      const { data: priceSets } = await query.graph({
-        entity: "product_variant",
-        fields: ["id", "price_set.id", "price_set.prices.*"],
-        filters: { id: variantId },
-      })
-
-      const priceSet = priceSets[0]?.price_set
-      const priceSetId = Array.isArray(priceSet) ? priceSet[0]?.id : priceSet?.id
-
-      if (priceSetId) {
-        const existingPrices = Array.isArray(priceSet)
-          ? priceSet[0]?.prices ?? []
-          : priceSet?.prices ?? []
-
-        const oldGtqPrice = existingPrices.find(
-          (p: any) => p.currency_code === "gtq" && !p.price_list_id
-        )
-
-        if (oldGtqPrice) {
-          await pricingModule.deletePrices([oldGtqPrice.id])
-        }
-
-        await pricingModule.addPrices([
-          {
-            priceSetId,
-            prices: [
-              {
-                amount: Number(price_gtq),
-                currency_code: "gtq",
-                rules: {},
-              },
-            ],
-          },
-        ])
-      } else {
-        // No tiene price_set aún, crear uno nuevo y vincular
-        const remoteLink = req.scope.resolve(
-          ContainerRegistrationKeys.REMOTE_LINK
-        )
-        const [newPriceSet] = await pricingModule.createPriceSets([
-          {
-            prices: [
-              {
-                amount: Number(price_gtq),
-                currency_code: "gtq",
-                rules: {},
-              },
-            ],
-          },
-        ])
-        await remoteLink.create({
-          [Modules.PRODUCT]: { variant_id: variantId },
-          [Modules.PRICING]: { price_set_id: newPriceSet.id },
-        })
-      }
-    } else {
-      // No hay precio GTQ aún — buscar price_set o crear
-      const remoteLink = req.scope.resolve(ContainerRegistrationKeys.REMOTE_LINK)
-      const { data: priceSets } = await query.graph({
-        entity: "product_variant",
-        fields: ["id", "price_set.id"],
-        filters: { id: variantId },
-      })
-
-      const priceSet = priceSets[0]?.price_set
-      const priceSetId = Array.isArray(priceSet) ? priceSet[0]?.id : priceSet?.id
-
-      if (priceSetId) {
-        await pricingModule.addPrices([
-          {
-            priceSetId,
-            prices: [
-              {
-                amount: Number(price_gtq),
-                currency_code: "gtq",
-                rules: {},
-              },
-            ],
-          },
-        ])
-      } else {
-        const [newPriceSet] = await pricingModule.createPriceSets([
-          {
-            prices: [
-              {
-                amount: Number(price_gtq),
-                currency_code: "gtq",
-                rules: {},
-              },
-            ],
-          },
-        ])
-        await remoteLink.create({
-          [Modules.PRODUCT]: { variant_id: variantId },
-          [Modules.PRICING]: { price_set_id: newPriceSet.id },
-        })
-      }
+    if (existingPriceSetId) {
+      // Eliminar price set viejo y desvincular
+      await remoteLink.dismiss({
+        [Modules.PRODUCT]: { variant_id: variantId },
+        [Modules.PRICING]: { price_set_id: existingPriceSetId },
+      }).catch(() => {})
+      await pricingModule.deletePriceSets([existingPriceSetId]).catch(() => {})
     }
+
+    // Crear nuevo price set con el precio actualizado
+    const [newPriceSet] = await pricingModule.createPriceSets([
+      {
+        prices: [
+          {
+            amount: Number(price_gtq),
+            currency_code: "gtq",
+            rules: {},
+          },
+        ],
+      },
+    ])
+
+    await remoteLink.create({
+      [Modules.PRODUCT]: { variant_id: variantId },
+      [Modules.PRICING]: { price_set_id: newPriceSet.id },
+    })
   }
 
   return res.json({ variant })

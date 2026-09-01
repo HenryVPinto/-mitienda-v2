@@ -90,9 +90,7 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
   if (title !== undefined) updateData.title = title
   if (description !== undefined) updateData.description = description
 
-  const [product] = await productModule.updateProducts([
-    { id, ...updateData },
-  ])
+  const product = await productModule.updateProducts(id, updateData)
 
   return res.json({ product })
 }
