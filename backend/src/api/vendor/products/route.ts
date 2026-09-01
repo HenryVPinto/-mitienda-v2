@@ -18,7 +18,28 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const linked = Array.isArray(rawLinked) ? rawLinked : rawLinked ? [rawLinked] : []
 
   if (!linked.length) {
-    return res.json({ products: [], _debug: { vendor_id: vendor.vendor_id, vendors_found: vendors.length, raw_product: rawLinked } })
+    // Extra debug: check from product side if any draft products link back to this vendor
+    const { data: draftCheck } = await query.graph({
+      entity: "product",
+      fields: ["id", "title", "status", "mt_vendor.id"],
+      filters: { status: ["draft", "published", "proposed"] },
+      pagination: { take: 20 },
+    }).catch(() => ({ data: [] }))
+
+    return res.json({
+      products: [],
+      _debug: {
+        vendor_id: vendor.vendor_id,
+        vendors_found: vendors.length,
+        raw_product: rawLinked ?? null,
+        all_products_sample: (draftCheck as any[]).map((p: any) => ({
+          id: p.id,
+          title: p.title,
+          status: p.status,
+          mt_vendor_id: Array.isArray(p.mt_vendor) ? p.mt_vendor[0]?.id : p.mt_vendor?.id,
+        })),
+      },
+    })
   }
 
   const productIds = linked.map((p: { id: string }) => p.id)
