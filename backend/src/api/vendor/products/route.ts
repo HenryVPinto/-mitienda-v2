@@ -18,7 +18,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const linked = Array.isArray(rawLinked) ? rawLinked : rawLinked ? [rawLinked] : []
 
   if (!linked.length) {
-    return res.json({ products: [] })
+    return res.json({ products: [], _debug: { vendor_id: vendor.vendor_id, vendors_found: vendors.length, raw_product: rawLinked } })
   }
 
   const productIds = linked.map((p: { id: string }) => p.id)
@@ -38,7 +38,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     filters: { id: productIds },
   })
 
-  return res.json({ products })
+  return res.json({ products, _debug: { vendor_id: vendor.vendor_id, linked_ids: productIds } })
 }
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
