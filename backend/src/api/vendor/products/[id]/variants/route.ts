@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { createProductVariantsWorkflow } from "@medusajs/medusa/core-flows"
 
 async function verifyOwnership(
@@ -45,11 +45,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.status(403).json({ message: "No tienes acceso a este producto" })
   }
 
-  // Build variant input — options as { optionTitle: value } object for the workflow
-  // options arrives as [{ option_id, value }] from the frontend
+  // Convert [{ option_id, value }] → { "OptionTitle": "value" } for the workflow
   const optionsMap: Record<string, string> = {}
-  if (Array.isArray(options)) {
-    // Fetch option titles via query.graph so the workflow can match them by title
+  if (Array.isArray(options) && options.length > 0) {
     const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
     const { data: productData } = await query.graph({
       entity: "product",
@@ -65,6 +63,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   const variantInput: any = {
+    product_id: id,
     title,
     inventory_quantity: inventory_quantity ?? 0,
     manage_inventory: manage_inventory ?? false,
@@ -78,36 +77,18 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     variantInput.metadata = { color_hex }
   }
 
-  const { result } = await createProductVariantsWorkflow(req.scope).run({
-    input: {
-      product_id: id,
-      variants: [variantInput],
-    } as any,
-  })
-
-  const variant = result[0]
-
+  // Pass price directly to the workflow (it handles price set + link internally)
   if (price_gtq !== undefined && price_gtq !== null) {
-    const pricingModule = req.scope.resolve(Modules.PRICING)
-    const remoteLink = req.scope.resolve(ContainerRegistrationKeys.REMOTE_LINK)
-
-    const [priceSet] = await pricingModule.createPriceSets([
-      {
-        prices: [
-          {
-            amount: Number(price_gtq),
-            currency_code: "gtq",
-            rules: {},
-          },
-        ],
-      },
-    ])
-
-    await remoteLink.create({
-      [Modules.PRODUCT]: { variant_id: variant.id },
-      [Modules.PRICING]: { price_set_id: priceSet.id },
-    })
+    variantInput.prices = [{ amount: Number(price_gtq), currency_code: "gtq" }]
   }
 
-  return res.status(201).json({ variant })
+  try {
+    const { result } = await createProductVariantsWorkflow(req.scope).run({
+      input: { product_variants: [variantInput] } as any,
+    })
+
+    return res.status(201).json({ variant: result[0] })
+  } catch (err: any) {
+    return res.status(500).json({ message: err.message ?? "Error al crear variante" })
+  }
 }
