@@ -1,8 +1,10 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { uploadFilesWorkflow } from "@medusajs/medusa/core-flows"
 
+interface MulterFile { originalname: string; mimetype: string; buffer: Buffer }
+
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
-  const files = req.files as Express.Multer.File[]
+  const files = (req as any).files as MulterFile[]
 
   if (!files?.length) {
     return res.status(400).json({ message: "No se recibió ningún archivo" })
