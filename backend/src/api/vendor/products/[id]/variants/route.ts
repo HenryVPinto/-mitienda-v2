@@ -1,5 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { createProductVariantsWorkflow } from "@medusajs/medusa/core-flows"
 
 async function verifyOwnership(
   req: MedusaRequest,
@@ -44,29 +45,52 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.status(403).json({ message: "No tienes acceso a este producto" })
   }
 
-  const productModule = req.scope.resolve(Modules.PRODUCT)
-  const remoteLink = req.scope.resolve(ContainerRegistrationKeys.REMOTE_LINK)
+  // Build variant input — options as { optionTitle: value } object for the workflow
+  // options arrives as [{ option_id, value }] from the frontend
+  const optionsMap: Record<string, string> = {}
+  if (Array.isArray(options)) {
+    // Fetch option titles via query.graph so the workflow can match them by title
+    const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+    const { data: productData } = await query.graph({
+      entity: "product",
+      fields: ["options.id", "options.title"],
+      filters: { id },
+    })
+    const productOptions: Array<{ id: string; title: string }> =
+      (productData[0] as any)?.options ?? []
+    for (const { option_id, value } of options) {
+      const opt = productOptions.find((o) => o.id === option_id)
+      if (opt) optionsMap[opt.title] = value
+    }
+  }
 
-  const variantData: any = {
-    product_id: id,
+  const variantInput: any = {
     title,
     inventory_quantity: inventory_quantity ?? 0,
     manage_inventory: manage_inventory ?? false,
   }
 
-  // options: [{ option_id: string, value: string }]
-  if (Array.isArray(options) && options.length > 0) {
-    variantData.options = options
+  if (Object.keys(optionsMap).length > 0) {
+    variantInput.options = optionsMap
   }
 
   if (color_hex) {
-    variantData.metadata = { color_hex }
+    variantInput.metadata = { color_hex }
   }
 
-  const [variant] = await productModule.createProductVariants([variantData])
+  const { result } = await createProductVariantsWorkflow(req.scope).run({
+    input: {
+      product_id: id,
+      variants: [variantInput],
+    } as any,
+  })
+
+  const variant = result[0]
 
   if (price_gtq !== undefined && price_gtq !== null) {
     const pricingModule = req.scope.resolve(Modules.PRICING)
+    const remoteLink = req.scope.resolve(ContainerRegistrationKeys.REMOTE_LINK)
+
     const [priceSet] = await pricingModule.createPriceSets([
       {
         prices: [
