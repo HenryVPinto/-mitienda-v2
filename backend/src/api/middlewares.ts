@@ -61,5 +61,21 @@ export default defineMiddlewares({
       matcher: "/vendor/auth/me",
       middlewares: [vendorAuth],
     },
+    {
+      matcher: "/vendor/products*",
+      middlewares: [vendorAuth],
+    },
+    {
+      matcher: "/vendor/categories*",
+      middlewares: [vendorAuth],
+    },
+    {
+      matcher: "/vendor/brands*",
+      middlewares: [vendorAuth],
+    },
+    {
+      matcher: "/vendor/uploads*",
+      middlewares: [vendorAuth],
+    },
   ],
 })
