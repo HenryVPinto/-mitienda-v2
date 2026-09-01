@@ -355,7 +355,7 @@ function VariantsSection({
 
   const addVariant = async () => {
     if (options.length > 0) {
-      const missing = options.find((o) => !selectedOptions[o.title])
+      const missing = options.find((o) => !selectedOptions[o.id])
       if (missing) {
         setFormError(`Selecciona un valor para "${missing.title}"`)
         return
@@ -365,15 +365,18 @@ function VariantsSection({
     setFormError("")
     const title =
       options.length > 0
-        ? options.map((o) => selectedOptions[o.title]).join(" / ")
+        ? options.map((o) => selectedOptions[o.id]).join(" / ")
         : "Default"
+    const optionsPayload = options.length > 0
+      ? options.map((o) => ({ option_id: o.id, value: selectedOptions[o.id] }))
+      : undefined
     try {
       const res = await fetch(`/api/vendor/products/${productId}/variants`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
-          options: options.length > 0 ? selectedOptions : undefined,
+          options: optionsPayload,
           price_gtq: price ? Number(price) : undefined,
           inventory_quantity: Number(stock),
           manage_inventory: manageInventory,
@@ -484,9 +487,9 @@ function VariantsSection({
             <div key={opt.id}>
               <label className="block text-xs font-medium text-gray-600 mb-1">{opt.title}</label>
               <select
-                value={selectedOptions[opt.title] ?? ""}
+                value={selectedOptions[opt.id] ?? ""}
                 onChange={(e) =>
-                  setSelectedOptions((prev) => ({ ...prev, [opt.title]: e.target.value }))
+                  setSelectedOptions((prev) => ({ ...prev, [opt.id]: e.target.value }))
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               >

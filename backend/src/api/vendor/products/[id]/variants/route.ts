@@ -54,7 +54,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     manage_inventory: manage_inventory ?? false,
   }
 
-  if (options && typeof options === "object") {
+  // options: [{ option_id: string, value: string }]
+  if (Array.isArray(options) && options.length > 0) {
     variantData.options = options
   }
 
