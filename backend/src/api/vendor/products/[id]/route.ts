@@ -40,6 +40,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       "status",
       "thumbnail",
       "images.*",
+      "categories.id",
+      "categories.name",
       "options.*",
       "options.values.*",
       "variants.id",
@@ -80,7 +82,11 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
 export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params
-  const { title, description, thumbnail, images, brand_id, weight } = req.body as any
+  const {
+    title, description, thumbnail, images,
+    brand_id, category_id,
+    weight, description_html,
+  } = req.body as any
 
   const owned = await verifyOwnership(req, id)
   if (!owned) {
@@ -97,6 +103,9 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
   if (description !== undefined) updateData.description = description
   if (thumbnail !== undefined) updateData.thumbnail = thumbnail
   if (images !== undefined) updateData.images = images
+  if (category_id !== undefined) {
+    updateData.categories = category_id ? [{ id: category_id }] : []
+  }
 
   if (Object.keys(updateData).length > 0) {
     await productModule.updateProducts(id, updateData)
@@ -125,12 +134,12 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   }
 
-  // Weight via product extension
-  if (weight !== undefined) {
+  // Product extension: weight + description_html
+  if (weight !== undefined || description_html !== undefined) {
     const extensionService: any = req.scope.resolve(PRODUCT_EXTENSION_MODULE)
     const { data: pData } = await query.graph({
       entity: "product",
-      fields: ["id", "mt_product_extension.id"],
+      fields: ["id", "mt_product_extension.id", "mt_product_extension.weight", "mt_product_extension.description_html"],
       filters: { id },
     })
     const cur = pData[0] as any
@@ -138,10 +147,14 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
       ? cur.mt_product_extension[0]
       : cur?.mt_product_extension
 
+    const extUpdate: any = {}
+    if (weight !== undefined) extUpdate.weight = weight
+    if (description_html !== undefined) extUpdate.description_html = description_html
+
     if (ext?.id) {
-      await extensionService.updateMtProductExtensions([{ id: ext.id, weight }])
+      await extensionService.updateMtProductExtensions([{ id: ext.id, ...extUpdate }])
     } else {
-      const newExt = await extensionService.createMtProductExtensions({ weight })
+      const newExt = await extensionService.createMtProductExtensions(extUpdate)
       await remoteLink.create({
         [Modules.PRODUCT]: { product_id: id },
         [PRODUCT_EXTENSION_MODULE]: { mt_product_extension_id: newExt.id },

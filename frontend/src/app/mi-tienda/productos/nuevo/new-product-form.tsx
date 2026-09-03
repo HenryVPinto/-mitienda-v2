@@ -1,15 +1,32 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+
+interface Category { id: string; name: string; parent_category_id: string | null }
 
 export default function NewProductForm() {
   const router = useRouter()
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
+  const [categoryId, setCategoryId] = useState("")
+  const [categories, setCategories] = useState<Category[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
+
+  useEffect(() => {
+    fetch("/api/vendor/categories")
+      .then((r) => r.json())
+      .then((d) => setCategories(d.categories ?? []))
+      .catch(() => {})
+  }, [])
+
+  // Build display name with parent prefix for context
+  const categoryLabel = (cat: Category) => {
+    const parent = categories.find((c) => c.id === cat.parent_category_id)
+    return parent ? `${parent.name} › ${cat.name}` : cat.name
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -20,10 +37,16 @@ export default function NewProductForm() {
     setSaving(true)
     setError("")
     try {
+      const body: Record<string, unknown> = {
+        title: title.trim(),
+        description: description.trim() || undefined,
+      }
+      if (categoryId) body.category_id = categoryId
+
       const res = await fetch("/api/vendor/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: title.trim(), description: description.trim() || undefined }),
+        body: JSON.stringify(body),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.message ?? "Error al crear el producto")
@@ -52,13 +75,31 @@ export default function NewProductForm() {
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          Categoría
+        </label>
+        <select
+          value={categoryId}
+          onChange={(e) => setCategoryId(e.target.value)}
+          className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+        >
+          <option value="">Sin categoría</option>
+          {categories.map((cat) => (
+            <option key={cat.id} value={cat.id}>
+              {categoryLabel(cat)}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">
           Descripción breve
         </label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Describe brevemente el producto..."
-          rows={4}
+          rows={3}
           className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
         />
       </div>

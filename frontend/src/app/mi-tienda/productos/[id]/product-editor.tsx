@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect, useMemo } from "react"
+import { useState, useCallback, useEffect, useMemo, useRef } from "react"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -24,14 +24,16 @@ export interface VendorProduct {
   status: string
   thumbnail: string | null
   images: { id: string; url: string }[]
+  categories: { id: string; name: string }[]
   options: ProductOption[]
   variants: ProductVariant[]
   mt_brand?: { id: string; name: string } | null
-  mt_product_extension?: { id?: string; weight?: number | null } | null
+  mt_product_extension?: { id?: string; weight?: number | null; description_html?: string | null } | null
 }
 type Product = VendorProduct
 
 interface Brand { id: string; name: string }
+interface Category { id: string; name: string; parent_category_id?: string | null }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -55,7 +57,9 @@ function BasicInfoSection({
     product.mt_product_extension?.weight?.toString() ?? ""
   )
   const [brandId, setBrandId] = useState(product.mt_brand?.id ?? "")
+  const [categoryId, setCategoryId] = useState(product.categories?.[0]?.id ?? "")
   const [brands, setBrands] = useState<Brand[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState("")
 
@@ -64,7 +68,16 @@ function BasicInfoSection({
       .then((r) => r.json())
       .then((d) => setBrands(d.brands ?? []))
       .catch(() => {})
+    fetch("/api/vendor/categories")
+      .then((r) => r.json())
+      .then((d) => setCategories(d.categories ?? []))
+      .catch(() => {})
   }, [])
+
+  const categoryLabel = (cat: Category) => {
+    const parent = categories.find((c) => c.id === cat.parent_category_id)
+    return parent ? `${parent.name} › ${cat.name}` : cat.name
+  }
 
   const save = async () => {
     setSaving(true)
@@ -74,14 +87,12 @@ function BasicInfoSection({
         title: title.trim(),
         description: description.trim() || null,
       }
-      if (brandId !== (product.mt_brand?.id ?? "")) {
-        body.brand_id = brandId || null
-      }
+      if (brandId !== (product.mt_brand?.id ?? "")) body.brand_id = brandId || null
+      const currentCatId = product.categories?.[0]?.id ?? ""
+      if (categoryId !== currentCatId) body.category_id = categoryId || null
       const weightNum = weight.trim() ? Number(weight.trim()) : null
       const currentWeight = product.mt_product_extension?.weight ?? null
-      if (weightNum !== currentWeight) {
-        body.weight = weightNum
-      }
+      if (weightNum !== currentWeight) body.weight = weightNum
 
       const res = await fetch(`/api/vendor/products/${product.id}`, {
         method: "PATCH",
@@ -91,10 +102,12 @@ function BasicInfoSection({
       if (!res.ok) throw new Error((await res.json()).message)
 
       const selectedBrand = brands.find((b) => b.id === brandId) ?? null
+      const selectedCat = categories.find((c) => c.id === categoryId) ?? null
       onSaved({
         title: title.trim(),
         description: description.trim() || null,
         mt_brand: selectedBrand,
+        categories: selectedCat ? [selectedCat] : [],
         mt_product_extension: weightNum !== null ? { weight: weightNum } : null,
       })
       setMsg("Guardado")
@@ -129,6 +142,20 @@ function BasicInfoSection({
           rows={4}
           className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
         />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">Categoría</label>
+        <select
+          value={categoryId}
+          onChange={(e) => setCategoryId(e.target.value)}
+          className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+        >
+          <option value="">Sin categoría</option>
+          {categories.map((cat) => (
+            <option key={cat.id} value={cat.id}>{categoryLabel(cat)}</option>
+          ))}
+        </select>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -859,6 +886,125 @@ function VariantsSection({
   )
 }
 
+// ── Section: Descripción enriquecida ─────────────────────────────────────────
+
+function RichTextEditor({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (html: string) => void
+}) {
+  const editorRef = useRef<HTMLDivElement>(null)
+
+  const exec = (cmd: string) => {
+    document.execCommand(cmd, false, undefined)
+    editorRef.current?.focus()
+    onChange(editorRef.current?.innerHTML ?? "")
+  }
+
+  const handleInput = () => {
+    onChange(editorRef.current?.innerHTML ?? "")
+  }
+
+  const tools = [
+    { label: "B", title: "Negrita", cmd: "bold", style: "font-bold" },
+    { label: "I", title: "Cursiva", cmd: "italic", style: "italic" },
+    { label: "U", title: "Subrayado", cmd: "underline", style: "underline" },
+    { label: "•", title: "Lista con viñetas", cmd: "insertUnorderedList", style: "" },
+    { label: "1.", title: "Lista numerada", cmd: "insertOrderedList", style: "" },
+  ]
+
+  return (
+    <div className="border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent">
+      {/* Toolbar */}
+      <div className="flex items-center gap-0.5 px-2 py-1.5 bg-gray-50 border-b border-gray-200">
+        {tools.map((t) => (
+          <button
+            key={t.cmd}
+            type="button"
+            title={t.title}
+            onMouseDown={(e) => { e.preventDefault(); exec(t.cmd) }}
+            className={`px-2.5 py-1 text-sm rounded hover:bg-gray-200 text-gray-700 transition ${t.style}`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {/* Editable area */}
+      <div
+        ref={editorRef as React.RefObject<HTMLDivElement>}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={handleInput}
+        dangerouslySetInnerHTML={{ __html: value }}
+        className="min-h-[160px] px-3 py-2.5 text-sm text-gray-800 focus:outline-none prose prose-sm max-w-none"
+        style={{ lineHeight: "1.6" }}
+      />
+    </div>
+  )
+}
+
+function DescriptionHtmlSection({
+  product,
+  onSaved,
+}: {
+  product: Product
+  onSaved: (updates: Partial<Product>) => void
+}) {
+  const [html, setHtml] = useState(product.mt_product_extension?.description_html ?? "")
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState("")
+
+  const save = async () => {
+    setSaving(true)
+    setMsg("")
+    try {
+      const res = await fetch(`/api/vendor/products/${product.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description_html: html }),
+      })
+      if (!res.ok) throw new Error((await res.json()).message)
+      onSaved({ mt_product_extension: { ...product.mt_product_extension, description_html: html } })
+      setMsg("Guardado")
+      setTimeout(() => setMsg(""), 2000)
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "Error al guardar")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
+      <div>
+        <h2 className="font-semibold text-gray-900 text-base">Descripción detallada</h2>
+        <p className="text-xs text-gray-500 mt-0.5">
+          Descripción completa que se muestra en la página del producto. Puedes usar formato enriquecido.
+        </p>
+      </div>
+
+      <RichTextEditor value={html} onChange={setHtml} />
+
+      <div className="flex items-center gap-3">
+        <button
+          onClick={save}
+          disabled={saving}
+          className="bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+        >
+          {saving ? "Guardando..." : "Guardar descripción"}
+        </button>
+        {msg && (
+          <span className={`text-sm ${msg === "Guardado" ? "text-green-600" : "text-red-600"}`}>
+            {msg}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function ProductEditor({ product: initialProduct }: { product: Product }) {
@@ -880,6 +1026,7 @@ export default function ProductEditor({ product: initialProduct }: { product: Pr
     <div className="space-y-4">
       <BasicInfoSection product={product} onSaved={updateProduct} />
       <ImagesSection product={product} onSaved={updateProduct} />
+      <DescriptionHtmlSection product={product} onSaved={updateProduct} />
       <OptionsSection productId={product.id} options={product.options ?? []} onOptionsChange={updateOptions} />
       <VariantsSection
         productId={product.id}
