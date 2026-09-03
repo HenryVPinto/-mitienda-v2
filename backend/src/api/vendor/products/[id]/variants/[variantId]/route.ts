@@ -26,7 +26,7 @@ async function verifyOwnership(
 
 export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id, variantId } = req.params
-  const { price_gtq, inventory_quantity, manage_inventory, color_hex } =
+  const { price_gtq, inventory_quantity, manage_inventory, color_hex, images_urls } =
     req.body as any
 
   const owned = await verifyOwnership(req, id)
@@ -37,14 +37,19 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
   const productModule = req.scope.resolve(Modules.PRODUCT)
 
   const updateData: any = {}
-  if (inventory_quantity !== undefined) {
-    updateData.inventory_quantity = inventory_quantity
-  }
-  if (manage_inventory !== undefined) {
-    updateData.manage_inventory = manage_inventory
-  }
-  if (color_hex !== undefined) {
-    updateData.metadata = { color_hex }
+  if (inventory_quantity !== undefined) updateData.inventory_quantity = inventory_quantity
+  if (manage_inventory !== undefined) updateData.manage_inventory = manage_inventory
+
+  // Merge metadata to avoid wiping color_hex when updating images_urls (or vice versa)
+  if (color_hex !== undefined || images_urls !== undefined) {
+    const [current] = await productModule.listProductVariants(
+      { id: variantId },
+      { select: ["id", "metadata"] }
+    )
+    const existingMeta = ((current as any)?.metadata as Record<string, unknown>) ?? {}
+    updateData.metadata = { ...existingMeta }
+    if (color_hex !== undefined) updateData.metadata.color_hex = color_hex
+    if (images_urls !== undefined) updateData.metadata.images_urls = images_urls
   }
 
   const variant = await productModule.updateProductVariants(variantId, updateData)
@@ -54,7 +59,6 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
     const pricingModule = req.scope.resolve(Modules.PRICING)
     const remoteLink = req.scope.resolve(ContainerRegistrationKeys.REMOTE_LINK)
 
-    // Obtener price_set actual del variant
     const { data: variantData } = await query.graph({
       entity: "product_variant",
       fields: ["id", "price_set.id"],
@@ -67,7 +71,6 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
       : priceSetRaw?.id
 
     if (existingPriceSetId) {
-      // Eliminar price set viejo y desvincular
       await remoteLink.dismiss({
         [Modules.PRODUCT]: { variant_id: variantId },
         [Modules.PRICING]: { price_set_id: existingPriceSetId },
@@ -75,16 +78,9 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
       await pricingModule.deletePriceSets([existingPriceSetId]).catch(() => {})
     }
 
-    // Crear nuevo price set con el precio actualizado
     const [newPriceSet] = await pricingModule.createPriceSets([
       {
-        prices: [
-          {
-            amount: Number(price_gtq),
-            currency_code: "gtq",
-            rules: {},
-          },
-        ],
+        prices: [{ amount: Number(price_gtq), currency_code: "gtq", rules: {} }],
       },
     ])
 

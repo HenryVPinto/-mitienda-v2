@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useMemo } from "react"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -13,7 +13,7 @@ interface ProductVariant {
   sku: string | null
   inventory_quantity: number
   manage_inventory: boolean
-  metadata: { color_hex?: string } | null
+  metadata: { color_hex?: string; images_urls?: string[] } | null
   prices: VariantPrice[]
   options: OptionValue[]
 }
@@ -23,6 +23,7 @@ export interface VendorProduct {
   description: string | null
   status: string
   thumbnail: string | null
+  images: { id: string; url: string }[]
   options: ProductOption[]
   variants: ProductVariant[]
   mt_brand?: { id: string; name: string } | null
@@ -179,6 +180,105 @@ function BasicInfoSection({
 
 // ── Section: Imágenes ─────────────────────────────────────────────────────────
 
+async function uploadToR2(file: File): Promise<string> {
+  const formData = new FormData()
+  formData.append("files", file)
+  const res = await fetch("/api/vendor/uploads", { method: "POST", body: formData })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.message ?? "Error al subir imagen")
+  const url: string = data.files?.[0]?.url
+  if (!url) throw new Error("No se obtuvo URL del archivo")
+  return url
+}
+
+async function patchProduct(productId: string, body: Record<string, unknown>) {
+  const res = await fetch(`/api/vendor/products/${productId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error("Error al guardar cambios")
+}
+
+async function patchVariantImages(productId: string, variantId: string, images_urls: string[]) {
+  const res = await fetch(`/api/vendor/products/${productId}/variants/${variantId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ images_urls }),
+  })
+  if (!res.ok) throw new Error("Error al guardar fotos de variante")
+}
+
+function ColorImagesRow({
+  productId,
+  variant,
+}: {
+  productId: string
+  variant: ProductVariant
+}) {
+  const [urls, setUrls] = useState<string[]>(variant.metadata?.images_urls ?? [])
+  const [uploading, setUploading] = useState(false)
+  const [err, setErr] = useState("")
+
+  const add = async (file: File) => {
+    setUploading(true)
+    setErr("")
+    try {
+      const url = await uploadToR2(file)
+      const next = [...urls, url]
+      await patchVariantImages(productId, variant.id, next)
+      setUrls(next)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Error")
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const remove = async (url: string) => {
+    const next = urls.filter((u) => u !== url)
+    try {
+      await patchVariantImages(productId, variant.id, next)
+      setUrls(next)
+    } catch {
+      setErr("Error al eliminar foto")
+    }
+  }
+
+  return (
+    <div className="flex items-start gap-3 py-3 border-b border-gray-50 last:border-0">
+      <span
+        className="w-5 h-5 rounded-full border border-gray-200 shrink-0 mt-0.5"
+        style={{ background: variant.metadata?.color_hex ?? "#ccc" }}
+        title={variant.metadata?.color_hex}
+      />
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-medium text-gray-600 mb-2">{variant.title}</p>
+        <div className="flex flex-wrap gap-2">
+          {urls.map((url) => (
+            <div key={url} className="relative group w-14 h-14">
+              <img src={url} alt="" className="w-full h-full object-cover rounded-lg border border-gray-200" />
+              <button
+                onClick={() => remove(url)}
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs hidden group-hover:flex items-center justify-center leading-none"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          <label className={`w-14 h-14 rounded-lg border-2 border-dashed flex items-center justify-center cursor-pointer transition ${
+            uploading ? "border-gray-200 text-gray-300" : "border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-400"
+          }`}>
+            <span className="text-xl">{uploading ? "…" : "+"}</span>
+            <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) add(f); e.target.value = "" }} />
+          </label>
+        </div>
+        {err && <p className="text-xs text-red-500 mt-1">{err}</p>}
+      </div>
+    </div>
+  )
+}
+
 function ImagesSection({
   product,
   onSaved,
@@ -186,86 +286,154 @@ function ImagesSection({
   product: Product
   onSaved: (updates: Partial<Product>) => void
 }) {
+  const [images, setImages] = useState<{ id: string; url: string }[]>(product.images ?? [])
+  const [thumbnail, setThumbnail] = useState(product.thumbnail)
   const [uploading, setUploading] = useState(false)
   const [msg, setMsg] = useState("")
 
-  const uploadFile = async (file: File) => {
+  const colorVariants = useMemo(() => {
+    const seen = new Set<string>()
+    return (product.variants ?? []).filter((v) => {
+      const hex = v.metadata?.color_hex
+      if (!hex || seen.has(hex)) return false
+      seen.add(hex)
+      return true
+    })
+  }, [product.variants])
+
+  const showMsg = (text: string) => { setMsg(text); setTimeout(() => setMsg(""), 3000) }
+
+  const addImage = async (file: File) => {
     setUploading(true)
     setMsg("")
     try {
-      const formData = new FormData()
-      formData.append("files", file)
-
-      const uploadRes = await fetch("/api/vendor/uploads", {
-        method: "POST",
-        body: formData,
-      })
-      const uploadData = await uploadRes.json()
-      if (!uploadRes.ok) throw new Error(uploadData.message ?? "Error al subir imagen")
-
-      const url: string = uploadData.files?.[0]?.url
-      if (!url) throw new Error("No se obtuvo URL del archivo")
-
-      const isThumbnail = !product.thumbnail
-      const patchBody: Record<string, unknown> = { images: [{ url }] }
-      if (isThumbnail) patchBody.thumbnail = url
-
-      const patchRes = await fetch(`/api/vendor/products/${product.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patchBody),
-      })
-      if (!patchRes.ok) throw new Error("Error al guardar imagen en el producto")
-
-      onSaved({ thumbnail: isThumbnail ? url : product.thumbnail })
-      setMsg("Imagen subida")
-      setTimeout(() => setMsg(""), 3000)
-    } catch (err) {
-      setMsg(err instanceof Error ? err.message : "Error al subir imagen")
+      const url = await uploadToR2(file)
+      const isFirst = images.length === 0
+      const newImages = [...images.map((i) => ({ url: i.url })), { url }]
+      const patch: Record<string, unknown> = { images: newImages }
+      if (isFirst) patch.thumbnail = url
+      await patchProduct(product.id, patch)
+      setImages((prev) => [...prev, { id: url, url }])
+      if (isFirst) { setThumbnail(url); onSaved({ thumbnail: url }) }
+      showMsg("Foto agregada")
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Error al subir")
     } finally {
       setUploading(false)
     }
   }
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) uploadFile(file)
-    e.target.value = ""
+  const removeImage = async (url: string) => {
+    const remaining = images.filter((i) => i.url !== url)
+    const newThumb = thumbnail === url ? (remaining[0]?.url ?? null) : thumbnail
+    try {
+      await patchProduct(product.id, {
+        images: remaining.map((i) => ({ url: i.url })),
+        ...(newThumb !== thumbnail ? { thumbnail: newThumb } : {}),
+      })
+      setImages(remaining)
+      if (newThumb !== thumbnail) { setThumbnail(newThumb); onSaved({ thumbnail: newThumb }) }
+      showMsg("Foto eliminada")
+    } catch {
+      setMsg("Error al eliminar foto")
+    }
+  }
+
+  const setAsThumbnail = async (url: string) => {
+    try {
+      await patchProduct(product.id, { thumbnail: url })
+      setThumbnail(url)
+      onSaved({ thumbnail: url })
+      showMsg("Foto principal actualizada")
+    } catch {
+      setMsg("Error al cambiar foto principal")
+    }
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-6">
-      <h2 className="font-semibold text-gray-900 text-base mb-4">Imágenes</h2>
+    <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-5">
+      <h2 className="font-semibold text-gray-900 text-base">Imágenes</h2>
 
-      <div className="flex items-start gap-4">
-        <div className="w-24 h-24 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden shrink-0">
-          {product.thumbnail ? (
-            <img src={product.thumbnail} alt="Thumbnail" className="w-full h-full object-cover" />
-          ) : (
-            <span className="text-3xl">🖼️</span>
-          )}
-        </div>
+      {/* Gallery */}
+      <div>
+        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">
+          Galería del producto
+        </p>
+        <div className="flex flex-wrap gap-3">
+          {images.map((img) => (
+            <div key={img.url} className="relative group w-20 h-20">
+              <img
+                src={img.url}
+                alt=""
+                className={`w-full h-full object-cover rounded-xl border-2 transition ${
+                  thumbnail === img.url ? "border-blue-500" : "border-gray-200"
+                }`}
+              />
+              {thumbnail === img.url && (
+                <span className="absolute bottom-1 left-1 bg-blue-500 text-white text-[9px] font-bold px-1 rounded">
+                  PRINCIPAL
+                </span>
+              )}
+              <div className="absolute inset-0 bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center gap-1">
+                {thumbnail !== img.url && (
+                  <button
+                    onClick={() => setAsThumbnail(img.url)}
+                    className="text-white text-[10px] font-medium bg-blue-500 px-1.5 py-0.5 rounded"
+                  >
+                    Principal
+                  </button>
+                )}
+                <button
+                  onClick={() => removeImage(img.url)}
+                  className="text-white text-[10px] font-medium bg-red-500 px-1.5 py-0.5 rounded"
+                >
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          ))}
 
-        <div className="flex-1">
-          <p className="text-sm text-gray-600 mb-3">
-            {product.thumbnail
-              ? "Foto principal. Sube una nueva para reemplazarla."
-              : "Sube la foto principal de tu producto."}
-          </p>
-
-          <label className={`inline-flex items-center gap-2 cursor-pointer px-4 py-2 rounded-lg text-sm font-medium transition ${
-            uploading ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-blue-600 text-white hover:bg-blue-700"
+          {/* Upload button */}
+          <label className={`w-20 h-20 rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition gap-1 ${
+            uploading ? "border-gray-200 text-gray-300" : "border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500"
           }`}>
-            {uploading ? "Subiendo..." : "📷 Subir foto"}
-            <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={handleChange} />
+            <span className="text-2xl leading-none">{uploading ? "…" : "+"}</span>
+            <span className="text-[10px]">{uploading ? "Subiendo" : "Foto"}</span>
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              disabled={uploading}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) addImage(f); e.target.value = "" }}
+            />
           </label>
-
-          {msg && (
-            <p className={`mt-2 text-sm ${msg.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>{msg}</p>
-          )}
-          <p className="mt-2 text-xs text-gray-400">JPG, PNG o WEBP. Máximo 5 MB.</p>
         </div>
+
+        {images.length > 0 && (
+          <p className="text-xs text-gray-400 mt-2">
+            Pasa el cursor sobre una foto para establecerla como principal o eliminarla.
+          </p>
+        )}
+        {msg && (
+          <p className={`mt-2 text-sm ${msg.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>
+            {msg}
+          </p>
+        )}
       </div>
+
+      {/* Per-color images */}
+      {colorVariants.length > 0 && (
+        <div>
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+            Fotos por color
+          </p>
+          <div>
+            {colorVariants.map((v) => (
+              <ColorImagesRow key={v.id} productId={product.id} variant={v} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
