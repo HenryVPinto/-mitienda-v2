@@ -28,6 +28,7 @@ async function verifyOwnership(
 }
 
 export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
+  try {
   const { id, variantId } = req.params
   const { price_gtq, inventory_quantity, manage_inventory, color_hex, images_urls } =
     req.body as any
@@ -164,6 +165,12 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   return res.json({ variant })
+  } catch (err: any) {
+    return res.status(500).json({
+      message: err?.message ?? "Error desconocido",
+      stack: err?.stack?.split("\n").slice(0, 5),
+    })
+  }
 }
 
 export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
