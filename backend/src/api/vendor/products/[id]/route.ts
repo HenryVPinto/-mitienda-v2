@@ -59,6 +59,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       "mt_product_extension.wholesale_price",
       "mt_product_extension.weight",
       "mt_product_extension.description_html",
+      "metadata",
     ],
     filters: { id },
   })
@@ -86,6 +87,7 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
     title, description, thumbnail, images,
     brand_id, category_id,
     weight, description_html,
+    promo_rule_ids,
   } = req.body as any
 
   const owned = await verifyOwnership(req, id)
@@ -105,6 +107,17 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
   if (images !== undefined) updateData.images = images
   if (category_id !== undefined) {
     updateData.categories = category_id ? [{ id: category_id }] : []
+  }
+
+  // Merge promo_rule_ids into existing metadata
+  if (promo_rule_ids !== undefined) {
+    const { data: pData } = await query.graph({
+      entity: "product",
+      fields: ["id", "metadata"],
+      filters: { id },
+    })
+    const existingMeta = ((pData[0] as any)?.metadata as Record<string, unknown>) ?? {}
+    updateData.metadata = { ...existingMeta, promo_rule_ids }
   }
 
   if (Object.keys(updateData).length > 0) {

@@ -85,5 +85,9 @@ export default defineMiddlewares({
       matcher: "/vendor/profile*",
       middlewares: [vendorAuth],
     },
+    {
+      matcher: "/vendor/promotion-rules*",
+      middlewares: [vendorAuth],
+    },
   ],
 })

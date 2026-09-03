@@ -25,6 +25,7 @@ export interface VendorProduct {
   thumbnail: string | null
   images: { id: string; url: string }[]
   categories: { id: string; name: string }[]
+  metadata: Record<string, unknown> | null
   options: ProductOption[]
   variants: ProductVariant[]
   mt_brand?: { id: string; name: string } | null
@@ -1005,6 +1006,144 @@ function DescriptionHtmlSection({
   )
 }
 
+// ── Section: Reglas de precio ─────────────────────────────────────────────────
+
+interface PromoRule {
+  id: string
+  name: string
+  type: "WHOLESALE" | "QUANTITY_DISCOUNT"
+  description: string | null
+  min_quantity: number | null
+  discount_percentage: number | null
+  discount_amount: number | null
+}
+
+function PricingRulesSection({
+  product,
+  onSaved,
+}: {
+  product: Product
+  onSaved: (updates: Partial<Product>) => void
+}) {
+  const currentIds: string[] = Array.isArray(product.metadata?.promo_rule_ids)
+    ? (product.metadata!.promo_rule_ids as string[])
+    : []
+
+  const [selected, setSelected] = useState<Set<string>>(new Set(currentIds))
+  const [rules, setRules] = useState<PromoRule[]>([])
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState("")
+
+  useEffect(() => {
+    fetch("/api/vendor/promotion-rules")
+      .then((r) => r.json())
+      .then((d) => setRules(d.rules ?? []))
+      .catch(() => {})
+  }, [])
+
+  const toggle = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const save = async () => {
+    setSaving(true)
+    setMsg("")
+    try {
+      const res = await fetch(`/api/vendor/products/${product.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ promo_rule_ids: Array.from(selected) }),
+      })
+      if (!res.ok) throw new Error((await res.json()).message)
+      onSaved({ metadata: { ...product.metadata, promo_rule_ids: Array.from(selected) } })
+      setMsg("Guardado")
+      setTimeout(() => setMsg(""), 2000)
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "Error al guardar")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const typeLabel = (type: PromoRule["type"]) =>
+    type === "WHOLESALE" ? "Mayoreo" : "Desc. por cantidad"
+
+  const typeBg = (type: PromoRule["type"]) =>
+    type === "WHOLESALE" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"
+
+  const ruleDescription = (r: PromoRule) => {
+    const parts: string[] = []
+    if (r.min_quantity) parts.push(`Mín. ${r.min_quantity} unidades`)
+    if (r.discount_percentage) parts.push(`${r.discount_percentage}% de descuento`)
+    if (r.discount_amount) parts.push(`Q${r.discount_amount} de descuento`)
+    return parts.join(" · ") || r.description || ""
+  }
+
+  if (rules.length === 0) return null
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
+      <div>
+        <h2 className="font-semibold text-gray-900 text-base">Reglas de precio</h2>
+        <p className="text-xs text-gray-500 mt-0.5">
+          Selecciona las reglas de mayoreo o descuento por cantidad que aplican a este producto.
+          El administrador configura estas reglas.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        {rules.map((rule) => (
+          <label
+            key={rule.id}
+            className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition ${
+              selected.has(rule.id)
+                ? "border-blue-300 bg-blue-50"
+                : "border-gray-100 hover:border-gray-200 bg-gray-50"
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={selected.has(rule.id)}
+              onChange={() => toggle(rule.id)}
+              className="mt-0.5 rounded"
+            />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium text-gray-800">{rule.name}</span>
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${typeBg(rule.type)}`}>
+                  {typeLabel(rule.type)}
+                </span>
+              </div>
+              {ruleDescription(rule) && (
+                <p className="text-xs text-gray-500 mt-0.5">{ruleDescription(rule)}</p>
+              )}
+            </div>
+          </label>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button
+          onClick={save}
+          disabled={saving}
+          className="bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+        >
+          {saving ? "Guardando..." : "Guardar reglas"}
+        </button>
+        {msg && (
+          <span className={`text-sm ${msg === "Guardado" ? "text-green-600" : "text-red-600"}`}>
+            {msg}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function ProductEditor({ product: initialProduct }: { product: Product }) {
@@ -1027,6 +1166,7 @@ export default function ProductEditor({ product: initialProduct }: { product: Pr
       <BasicInfoSection product={product} onSaved={updateProduct} />
       <ImagesSection product={product} onSaved={updateProduct} />
       <DescriptionHtmlSection product={product} onSaved={updateProduct} />
+      <PricingRulesSection product={product} onSaved={updateProduct} />
       <OptionsSection productId={product.id} options={product.options ?? []} onOptionsChange={updateOptions} />
       <VariantsSection
         productId={product.id}
