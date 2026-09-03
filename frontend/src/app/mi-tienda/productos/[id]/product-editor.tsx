@@ -614,7 +614,6 @@ function VariantsSection({
   const [showForm, setShowForm] = useState(false)
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({})
   const [price, setPrice] = useState("")
-  const [stock, setStock] = useState("0")
   const [colorHex, setColorHex] = useState("#000000")
   const [useColor, setUseColor] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -622,17 +621,14 @@ function VariantsSection({
 
   const [savingId, setSavingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [inlineValues, setInlineValues] = useState<Record<string, { price: string; stock: string }>>({})
+  const [inlineValues, setInlineValues] = useState<Record<string, { price: string }>>({})
 
   const getInline = (variantId: string, variant: ProductVariant) => {
     if (inlineValues[variantId]) return inlineValues[variantId]
-    return {
-      price: getGtqPrice(variant)?.toString() ?? "",
-      stock: (variant.metadata?.vendor_stock ?? variant.inventory_quantity ?? 0).toString(),
-    }
+    return { price: getGtqPrice(variant)?.toString() ?? "" }
   }
 
-  const setInline = (variantId: string, field: "price" | "stock", value: string) => {
+  const setInline = (variantId: string, field: "price", value: string) => {
     setInlineValues((prev) => ({
       ...prev,
       [variantId]: { ...getInline(variantId, variants.find((v) => v.id === variantId)!), [field]: value },
@@ -646,25 +642,17 @@ function VariantsSection({
       const originalPrice = getGtqPrice(variant)
       const newPrice = inline.price ? Number(inline.price) : null
       const priceChanged = newPrice !== originalPrice
-      const newStock = Number(inline.stock)
-      const originalStock = variant.metadata?.vendor_stock ?? variant.inventory_quantity ?? 0
-      const stockChanged = newStock !== originalStock
-
-      const body: Record<string, unknown> = {}
-      if (stockChanged) body.inventory_quantity = newStock
-      if (priceChanged && newPrice !== null) body.price_gtq = newPrice
-      if (!stockChanged && !priceChanged) return
+      if (!priceChanged) return
 
       const res = await fetch(`/api/vendor/products/${productId}/variants/${variant.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ price_gtq: newPrice }),
       })
       if (!res.ok) throw new Error((await res.json()).message)
       const updatedVariant: ProductVariant = {
         ...variant,
-        metadata: stockChanged ? { ...variant.metadata, vendor_stock: newStock } : variant.metadata,
-        prices: priceChanged && newPrice !== null
+        prices: newPrice !== null
           ? [{ id: "tmp", amount: newPrice, currency_code: "gtq", price_list_id: null }]
           : variant.prices,
       }
@@ -715,7 +703,6 @@ function VariantsSection({
           title,
           options: optionsPayload,
           price_gtq: price ? Number(price) : undefined,
-          inventory_quantity: Number(stock),
           manage_inventory: false,
           color_hex: useColor ? colorHex : undefined,
         }),
@@ -725,7 +712,6 @@ function VariantsSection({
       onVariantsChange([...variants, data.variant])
       setSelectedOptions({})
       setPrice("")
-      setStock("0")
       setColorHex("#000000")
       setUseColor(false)
       setShowForm(false)
@@ -778,21 +764,6 @@ function VariantsSection({
                       className="w-24 pl-6 pr-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                   </div>
-                  <input
-                    type="number"
-                    min="0"
-                    value={inline.stock}
-                    onChange={(e) => setInline(variant.id, "stock", e.target.value)}
-                    placeholder="Stock"
-                    title="Stock"
-                    className={`w-20 px-2 py-1.5 border rounded-lg text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                      Number(inline.stock) === 0
-                        ? "border-red-300 bg-red-50 text-red-700"
-                        : Number(inline.stock) <= 5
-                        ? "border-yellow-300 bg-yellow-50 text-yellow-700"
-                        : "border-green-300 bg-green-50 text-green-700"
-                    }`}
-                  />
                   <button
                     onClick={() => saveVariant(variant)}
                     disabled={savingId === variant.id}
@@ -833,32 +804,16 @@ function VariantsSection({
             </div>
           ))}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Precio (Q)</label>
-              <input
-                type="number"
-                min="0"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                placeholder="0"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Stock</label>
-              <input
-                type="number"
-                min="0"
-                value={stock}
-                onChange={(e) => setStock(e.target.value)}
-                placeholder="0"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              {stock !== "" && Number(stock) === 0 && (
-                <p className="text-xs text-red-600 mt-1">Sin existencias — el producto no se podrá vender</p>
-              )}
-            </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Precio (Q)</label>
+            <input
+              type="number"
+              min="0"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder="0"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
 
           <div>

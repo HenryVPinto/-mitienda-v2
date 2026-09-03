@@ -1,8 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
-import { VENDOR_MODULE } from "../../../../../../modules/vendor"
-import VendorModuleService from "../../../../../../modules/vendor/service"
-import { resend, FROM, ADMIN_EMAIL, emailHeader, emailFooter } from "../../../../../../lib/resend"
 
 async function verifyOwnership(
   req: MedusaRequest,
@@ -30,8 +27,7 @@ async function verifyOwnership(
 export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
     const { id, variantId } = req.params
-    const { price_gtq, inventory_quantity, manage_inventory, color_hex, images_urls } =
-      req.body as any
+    const { price_gtq, manage_inventory, color_hex, images_urls } = req.body as any
 
     const owned = await verifyOwnership(req, id)
     if (!owned) {
@@ -40,8 +36,8 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
 
     const productModule = req.scope.resolve(Modules.PRODUCT)
 
-    // Fetch existing metadata once — needed for inventory_quantity, color_hex, images_urls merges
-    const needsMeta = inventory_quantity !== undefined || color_hex !== undefined || images_urls !== undefined
+    // Merge existing metadata to avoid wiping color_hex or images_urls
+    const needsMeta = color_hex !== undefined || images_urls !== undefined
     let existingMeta: Record<string, unknown> = {}
     if (needsMeta) {
       const [current] = await productModule.listProductVariants(
@@ -51,21 +47,18 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
       existingMeta = ((current as any)?.metadata as Record<string, unknown>) ?? {}
     }
 
-    const newMeta: Record<string, unknown> = { ...existingMeta }
-
-    // inventory_quantity is NOT a real column in Medusa v2 ProductVariant — store in metadata
-    if (inventory_quantity !== undefined) {
-      newMeta.vendor_stock = Number(inventory_quantity)
-    }
-    if (color_hex !== undefined) newMeta.color_hex = color_hex
-    if (images_urls !== undefined) newMeta.images_urls = images_urls
-
-    const updatePayload: any = { id: variantId, metadata: newMeta }
+    const updatePayload: any = { id: variantId }
     if (manage_inventory !== undefined) updatePayload.manage_inventory = manage_inventory
+    if (needsMeta) {
+      const newMeta = { ...existingMeta }
+      if (color_hex !== undefined) newMeta.color_hex = color_hex
+      if (images_urls !== undefined) newMeta.images_urls = images_urls
+      updatePayload.metadata = newMeta
+    }
 
     const [variant] = await productModule.upsertProductVariants([updatePayload])
 
-    // Update price via pricing module (manual, keeps full control)
+    // Update price via pricing module
     if (price_gtq !== undefined && price_gtq !== null) {
       try {
         const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
@@ -113,61 +106,9 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
       }
     }
 
-    // Notify when stock hits 0
-    if (inventory_quantity === 0) {
-      try {
-        const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-        const { data: products } = await query.graph({
-          entity: "product",
-          fields: ["id", "title", "mt_vendor.id"],
-          filters: { id },
-        })
-        const p = products[0] as any
-        const vendorData = Array.isArray(p?.mt_vendor) ? p.mt_vendor[0] : p?.mt_vendor
-        const productTitle = p?.title ?? "Producto"
-
-        if (vendorData?.id) {
-          const vendorService = req.scope.resolve<VendorModuleService>(VENDOR_MODULE)
-          const [vendor] = await vendorService.listMtVendors({ id: vendorData.id })
-          const vendorName = vendor?.name ?? "Emprendedor"
-
-          const stockHtml = (isAdmin: boolean) => `
-            <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
-              ${emailHeader()}
-              <h2 style="font-size:18px;font-weight:700;color:#dc2626;margin:0 0 16px;">⚠️ Sin existencias</h2>
-              <p style="color:#444;margin:0 0 8px;">
-                ${isAdmin
-                  ? `El producto <strong>${productTitle}</strong> del emprendedor <strong>${vendorName}</strong> ha llegado a <strong>0 existencias</strong>.`
-                  : `Tu producto <strong>${productTitle}</strong> ha llegado a <strong>0 existencias</strong>. Actualiza el stock cuando tengas más unidades disponibles.`
-                }
-              </p>
-              ${emailFooter()}
-            </div>`
-
-          await resend.emails.send({
-            from: FROM, to: ADMIN_EMAIL,
-            subject: `Sin existencias: ${productTitle} (${vendorName})`,
-            html: stockHtml(true),
-          })
-          if (vendor?.contact_email) {
-            await resend.emails.send({
-              from: FROM, to: vendor.contact_email,
-              subject: `Tu producto "${productTitle}" se ha quedado sin existencias`,
-              html: stockHtml(false),
-            })
-          }
-        }
-      } catch {
-        // Non-critical
-      }
-    }
-
     return res.json({ variant })
   } catch (err: any) {
-    return res.status(500).json({
-      message: err?.message ?? "Error desconocido",
-      stack: err?.stack?.split("\n").slice(0, 5),
-    })
+    return res.status(500).json({ message: err?.message ?? "Error desconocido" })
   }
 }
 
