@@ -628,7 +628,7 @@ function VariantsSection({
     if (inlineValues[variantId]) return inlineValues[variantId]
     return {
       price: getGtqPrice(variant)?.toString() ?? "",
-      stock: variant.inventory_quantity?.toString() ?? "0",
+      stock: (variant.metadata?.vendor_stock ?? variant.inventory_quantity ?? 0).toString(),
     }
   }
 
@@ -647,7 +647,8 @@ function VariantsSection({
       const newPrice = inline.price ? Number(inline.price) : null
       const priceChanged = newPrice !== originalPrice
       const newStock = Number(inline.stock)
-      const stockChanged = newStock !== variant.inventory_quantity
+      const originalStock = variant.metadata?.vendor_stock ?? variant.inventory_quantity ?? 0
+      const stockChanged = newStock !== originalStock
 
       const body: Record<string, unknown> = {}
       if (stockChanged) body.inventory_quantity = newStock
@@ -662,7 +663,7 @@ function VariantsSection({
       if (!res.ok) throw new Error((await res.json()).message)
       const updatedVariant: ProductVariant = {
         ...variant,
-        inventory_quantity: stockChanged ? newStock : variant.inventory_quantity,
+        metadata: stockChanged ? { ...variant.metadata, vendor_stock: newStock } : variant.metadata,
         prices: priceChanged && newPrice !== null
           ? [{ id: "tmp", amount: newPrice, currency_code: "gtq", price_list_id: null }]
           : variant.prices,

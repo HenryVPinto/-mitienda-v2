@@ -21,6 +21,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       "thumbnail",
       "variants.id",
       "variants.inventory_quantity",
+      "variants.metadata",
       "variants.prices.*",
       "mt_vendor.id",
     ],

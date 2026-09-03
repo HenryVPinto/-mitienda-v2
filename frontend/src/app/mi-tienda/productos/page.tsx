@@ -33,10 +33,13 @@ async function getVendorAndProducts() {
 }
 
 interface VariantPrice { currency_code: string; amount: number; price_list_id: string | null }
-interface VariantRow { prices?: VariantPrice[]; inventory_quantity?: number }
+interface VariantRow { prices?: VariantPrice[]; inventory_quantity?: number; metadata?: { vendor_stock?: number } | null }
 
 function totalStock(variants: VariantRow[]): number {
-  return (variants ?? []).reduce((s, v) => s + (v.inventory_quantity ?? 0), 0)
+  return (variants ?? []).reduce((s, v) => {
+    const stock = v.metadata?.vendor_stock ?? v.inventory_quantity ?? 0
+    return s + stock
+  }, 0)
 }
 
 function stockBadge(qty: number) {

@@ -1,6 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
-import { updateProductVariantsWorkflow } from "@medusajs/medusa/core-flows"
 import { VENDOR_MODULE } from "../../../../../../modules/vendor"
 import VendorModuleService from "../../../../../../modules/vendor/service"
 import { resend, FROM, ADMIN_EMAIL, emailHeader, emailFooter } from "../../../../../../lib/resend"
@@ -39,33 +38,80 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
       return res.status(403).json({ message: "No tienes acceso a este producto" })
     }
 
-    // Build variant update — use workflow so inventory_quantity and prices are handled correctly
-    const variantUpdate: any = { id: variantId }
+    const productModule = req.scope.resolve(Modules.PRODUCT)
 
-    if (inventory_quantity !== undefined) variantUpdate.inventory_quantity = inventory_quantity
-    if (manage_inventory !== undefined) variantUpdate.manage_inventory = manage_inventory
-    if (price_gtq !== undefined && price_gtq !== null) {
-      variantUpdate.prices = [{ amount: Number(price_gtq), currency_code: "gtq" }]
-    }
-
-    // Merge existing metadata before updating to avoid wiping other keys
-    if (color_hex !== undefined || images_urls !== undefined) {
-      const productModule = req.scope.resolve(Modules.PRODUCT)
+    // Fetch existing metadata once — needed for inventory_quantity, color_hex, images_urls merges
+    const needsMeta = inventory_quantity !== undefined || color_hex !== undefined || images_urls !== undefined
+    let existingMeta: Record<string, unknown> = {}
+    if (needsMeta) {
       const [current] = await productModule.listProductVariants(
         { id: variantId },
         { select: ["id", "metadata"] }
       )
-      const existingMeta = ((current as any)?.metadata as Record<string, unknown>) ?? {}
-      variantUpdate.metadata = { ...existingMeta }
-      if (color_hex !== undefined) variantUpdate.metadata.color_hex = color_hex
-      if (images_urls !== undefined) variantUpdate.metadata.images_urls = images_urls
+      existingMeta = ((current as any)?.metadata as Record<string, unknown>) ?? {}
     }
 
-    const { result } = await updateProductVariantsWorkflow(req.scope).run({
-      input: { product_variants: [variantUpdate] } as any,
-    })
+    const newMeta: Record<string, unknown> = { ...existingMeta }
 
-    const variant = result[0]
+    // inventory_quantity is NOT a real column in Medusa v2 ProductVariant — store in metadata
+    if (inventory_quantity !== undefined) {
+      newMeta.vendor_stock = Number(inventory_quantity)
+    }
+    if (color_hex !== undefined) newMeta.color_hex = color_hex
+    if (images_urls !== undefined) newMeta.images_urls = images_urls
+
+    const updatePayload: any = { id: variantId, metadata: newMeta }
+    if (manage_inventory !== undefined) updatePayload.manage_inventory = manage_inventory
+
+    const [variant] = await productModule.upsertProductVariants([updatePayload])
+
+    // Update price via pricing module (manual, keeps full control)
+    if (price_gtq !== undefined && price_gtq !== null) {
+      try {
+        const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+        const pricingModule = req.scope.resolve(Modules.PRICING)
+        const remoteLink = req.scope.resolve(ContainerRegistrationKeys.REMOTE_LINK)
+
+        const { data: variantData } = await query.graph({
+          entity: "product_variant",
+          fields: ["id", "price_set.id"],
+          filters: { id: variantId },
+        })
+
+        const priceSetRaw = variantData[0]?.price_set
+        const existingPriceSetId = Array.isArray(priceSetRaw)
+          ? priceSetRaw[0]?.id
+          : priceSetRaw?.id
+
+        if (existingPriceSetId) {
+          await remoteLink.dismiss({
+            [Modules.PRODUCT]: { variant_id: variantId },
+            [Modules.PRICING]: { price_set_id: existingPriceSetId },
+          }).catch(() => {})
+          await pricingModule.deletePriceSets([existingPriceSetId]).catch(() => {})
+        }
+
+        const [newPriceSet] = await pricingModule.createPriceSets([
+          { prices: [{ amount: Number(price_gtq), currency_code: "gtq", rules: {} }] },
+        ])
+
+        await remoteLink.create({
+          [Modules.PRODUCT]: { variant_id: variantId },
+          [Modules.PRICING]: { price_set_id: newPriceSet.id },
+        }).catch(async () => {
+          await remoteLink.dismiss({
+            [Modules.PRODUCT]: { variant_id: variantId },
+            [Modules.PRICING]: { price_set_id: newPriceSet.id },
+          }).catch(() => {})
+          await remoteLink.create({
+            [Modules.PRODUCT]: { variant_id: variantId },
+            [Modules.PRICING]: { price_set_id: newPriceSet.id },
+          }).catch(() => {})
+        })
+      } catch {
+        // Price update failure is non-critical
+      }
+    }
 
     // Notify when stock hits 0
     if (inventory_quantity === 0) {
@@ -88,9 +134,7 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
           const stockHtml = (isAdmin: boolean) => `
             <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
               ${emailHeader()}
-              <h2 style="font-size:18px;font-weight:700;color:#dc2626;margin:0 0 16px;">
-                ⚠️ Sin existencias
-              </h2>
+              <h2 style="font-size:18px;font-weight:700;color:#dc2626;margin:0 0 16px;">⚠️ Sin existencias</h2>
               <p style="color:#444;margin:0 0 8px;">
                 ${isAdmin
                   ? `El producto <strong>${productTitle}</strong> del emprendedor <strong>${vendorName}</strong> ha llegado a <strong>0 existencias</strong>.`
@@ -101,16 +145,13 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
             </div>`
 
           await resend.emails.send({
-            from: FROM,
-            to: ADMIN_EMAIL,
+            from: FROM, to: ADMIN_EMAIL,
             subject: `Sin existencias: ${productTitle} (${vendorName})`,
             html: stockHtml(true),
           })
-
           if (vendor?.contact_email) {
             await resend.emails.send({
-              from: FROM,
-              to: vendor.contact_email,
+              from: FROM, to: vendor.contact_email,
               subject: `Tu producto "${productTitle}" se ha quedado sin existencias`,
               html: stockHtml(false),
             })
