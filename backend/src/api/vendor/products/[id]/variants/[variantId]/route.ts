@@ -1,8 +1,8 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
-import { VENDOR_MODULE } from "../../../../../modules/vendor"
-import VendorModuleService from "../../../../../modules/vendor/service"
-import { resend, FROM, ADMIN_EMAIL, emailHeader, emailFooter } from "../../../../../lib/resend"
+import { VENDOR_MODULE } from "../../../../../../modules/vendor"
+import VendorModuleService from "../../../../../../modules/vendor/service"
+import { resend, FROM, ADMIN_EMAIL, emailHeader, emailFooter } from "../../../../../../lib/resend"
 
 async function verifyOwnership(
   req: MedusaRequest,
