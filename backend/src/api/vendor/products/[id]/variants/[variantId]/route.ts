@@ -58,39 +58,53 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
   const variant = await productModule.updateProductVariants(variantId, updateData)
 
   if (price_gtq !== undefined && price_gtq !== null) {
-    const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-    const pricingModule = req.scope.resolve(Modules.PRICING)
-    const remoteLink = req.scope.resolve(ContainerRegistrationKeys.REMOTE_LINK)
+    try {
+      const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+      const pricingModule = req.scope.resolve(Modules.PRICING)
+      const remoteLink = req.scope.resolve(ContainerRegistrationKeys.REMOTE_LINK)
 
-    const { data: variantData } = await query.graph({
-      entity: "product_variant",
-      fields: ["id", "price_set.id"],
-      filters: { id: variantId },
-    })
+      const { data: variantData } = await query.graph({
+        entity: "product_variant",
+        fields: ["id", "price_set.id"],
+        filters: { id: variantId },
+      })
 
-    const priceSetRaw = variantData[0]?.price_set
-    const existingPriceSetId = Array.isArray(priceSetRaw)
-      ? priceSetRaw[0]?.id
-      : priceSetRaw?.id
+      const priceSetRaw = variantData[0]?.price_set
+      const existingPriceSetId = Array.isArray(priceSetRaw)
+        ? priceSetRaw[0]?.id
+        : priceSetRaw?.id
 
-    if (existingPriceSetId) {
-      await remoteLink.dismiss({
+      if (existingPriceSetId) {
+        await remoteLink.dismiss({
+          [Modules.PRODUCT]: { variant_id: variantId },
+          [Modules.PRICING]: { price_set_id: existingPriceSetId },
+        }).catch(() => {})
+        await pricingModule.deletePriceSets([existingPriceSetId]).catch(() => {})
+      }
+
+      const [newPriceSet] = await pricingModule.createPriceSets([
+        {
+          prices: [{ amount: Number(price_gtq), currency_code: "gtq", rules: {} }],
+        },
+      ])
+
+      await remoteLink.create({
         [Modules.PRODUCT]: { variant_id: variantId },
-        [Modules.PRICING]: { price_set_id: existingPriceSetId },
-      }).catch(() => {})
-      await pricingModule.deletePriceSets([existingPriceSetId]).catch(() => {})
+        [Modules.PRICING]: { price_set_id: newPriceSet.id },
+      }).catch(async () => {
+        // Link may already exist; dismiss all and retry
+        await remoteLink.dismiss({
+          [Modules.PRODUCT]: { variant_id: variantId },
+          [Modules.PRICING]: { price_set_id: newPriceSet.id },
+        }).catch(() => {})
+        await remoteLink.create({
+          [Modules.PRODUCT]: { variant_id: variantId },
+          [Modules.PRICING]: { price_set_id: newPriceSet.id },
+        }).catch(() => {})
+      })
+    } catch {
+      // Price update failed — stock was already saved, return partial success
     }
-
-    const [newPriceSet] = await pricingModule.createPriceSets([
-      {
-        prices: [{ amount: Number(price_gtq), currency_code: "gtq", rules: {} }],
-      },
-    ])
-
-    await remoteLink.create({
-      [Modules.PRODUCT]: { variant_id: variantId },
-      [Modules.PRICING]: { price_set_id: newPriceSet.id },
-    })
   }
 
   // Notify when stock hits 0

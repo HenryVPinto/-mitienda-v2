@@ -643,20 +643,28 @@ function VariantsSection({
     const inline = getInline(variant.id, variant)
     setSavingId(variant.id)
     try {
+      const originalPrice = getGtqPrice(variant)
+      const newPrice = inline.price ? Number(inline.price) : null
+      const priceChanged = newPrice !== originalPrice
+      const newStock = Number(inline.stock)
+      const stockChanged = newStock !== variant.inventory_quantity
+
+      const body: Record<string, unknown> = {}
+      if (stockChanged) body.inventory_quantity = newStock
+      if (priceChanged && newPrice !== null) body.price_gtq = newPrice
+      if (!stockChanged && !priceChanged) return
+
       const res = await fetch(`/api/vendor/products/${productId}/variants/${variant.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          price_gtq: inline.price ? Number(inline.price) : undefined,
-          inventory_quantity: Number(inline.stock),
-        }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) throw new Error((await res.json()).message)
       const updatedVariant: ProductVariant = {
         ...variant,
-        inventory_quantity: Number(inline.stock),
-        prices: inline.price
-          ? [{ id: "tmp", amount: Number(inline.price), currency_code: "gtq", price_list_id: null }]
+        inventory_quantity: stockChanged ? newStock : variant.inventory_quantity,
+        prices: priceChanged && newPrice !== null
+          ? [{ id: "tmp", amount: newPrice, currency_code: "gtq", price_list_id: null }]
           : variant.prices,
       }
       onVariantsChange(variants.map((v) => (v.id === variant.id ? updatedVariant : v)))
