@@ -56,7 +56,7 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
     if (images_urls !== undefined) updateData.metadata.images_urls = images_urls
   }
 
-  const variant = await productModule.updateProductVariants(variantId, updateData)
+  const [variant] = await productModule.updateProductVariants([{ id: variantId, ...updateData }])
 
   if (price_gtq !== undefined && price_gtq !== null) {
     try {
