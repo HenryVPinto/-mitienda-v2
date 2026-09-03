@@ -1,5 +1,8 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { VENDOR_MODULE } from "../../../../../modules/vendor"
+import VendorModuleService from "../../../../../modules/vendor/service"
+import { resend, FROM, ADMIN_EMAIL, emailHeader, emailFooter } from "../../../../../lib/resend"
 
 async function verifyOwnership(
   req: MedusaRequest,
@@ -88,6 +91,62 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
       [Modules.PRODUCT]: { variant_id: variantId },
       [Modules.PRICING]: { price_set_id: newPriceSet.id },
     })
+  }
+
+  // Notify when stock hits 0
+  if (inventory_quantity === 0) {
+    try {
+      const query2 = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+      const { data: products } = await query2.graph({
+        entity: "product",
+        fields: ["id", "title", "mt_vendor.id"],
+        filters: { id },
+      })
+      const p = products[0] as any
+      const vendorData = Array.isArray(p?.mt_vendor) ? p.mt_vendor[0] : p?.mt_vendor
+      const productTitle = p?.title ?? "Producto"
+
+      if (vendorData?.id) {
+        const vendorService = req.scope.resolve<VendorModuleService>(VENDOR_MODULE)
+        const [vendor] = await vendorService.listMtVendors({ id: vendorData.id })
+        const vendorName = vendor?.name ?? "Emprendedor"
+
+        const stockHtml = (to: string, isAdmin: boolean) => `
+          <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
+            ${emailHeader()}
+            <h2 style="font-size:18px;font-weight:700;color:#dc2626;margin:0 0 16px;">
+              ⚠️ Sin existencias
+            </h2>
+            <p style="color:#444;margin:0 0 8px;">
+              ${isAdmin
+                ? `El producto <strong>${productTitle}</strong> del emprendedor <strong>${vendorName}</strong> ha llegado a <strong>0 existencias</strong>.`
+                : `Tu producto <strong>${productTitle}</strong> ha llegado a <strong>0 existencias</strong>. Actualiza el stock cuando tengas más unidades disponibles.`
+              }
+            </p>
+            ${emailFooter()}
+          </div>`
+
+        // Notify admin
+        await resend.emails.send({
+          from: FROM,
+          to: ADMIN_EMAIL,
+          subject: `Sin existencias: ${productTitle} (${vendorName})`,
+          html: stockHtml(ADMIN_EMAIL, true),
+        })
+
+        // Notify vendor
+        if (vendor?.contact_email) {
+          await resend.emails.send({
+            from: FROM,
+            to: vendor.contact_email,
+            subject: `Tu producto "${productTitle}" se ha quedado sin existencias`,
+            html: stockHtml(vendor.contact_email, false),
+          })
+        }
+      }
+    } catch {
+      // Non-critical
+    }
   }
 
   return res.json({ variant })

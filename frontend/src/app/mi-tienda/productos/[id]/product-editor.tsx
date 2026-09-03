@@ -776,7 +776,13 @@ function VariantsSection({
                     onChange={(e) => setInline(variant.id, "stock", e.target.value)}
                     placeholder="Stock"
                     title="Stock"
-                    className="w-20 px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className={`w-20 px-2 py-1.5 border rounded-lg text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                      Number(inline.stock) === 0
+                        ? "border-red-300 bg-red-50 text-red-700"
+                        : Number(inline.stock) <= 5
+                        ? "border-yellow-300 bg-yellow-50 text-yellow-700"
+                        : "border-green-300 bg-green-50 text-green-700"
+                    }`}
                   />
                   <button
                     onClick={() => saveVariant(variant)}
@@ -840,6 +846,9 @@ function VariantsSection({
                 placeholder="0"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              {stock !== "" && Number(stock) === 0 && (
+                <p className="text-xs text-red-600 mt-1">Sin existencias — el producto no se podrá vender</p>
+              )}
             </div>
           </div>
 

@@ -33,7 +33,17 @@ async function getVendorAndProducts() {
 }
 
 interface VariantPrice { currency_code: string; amount: number; price_list_id: string | null }
-interface VariantRow { prices?: VariantPrice[] }
+interface VariantRow { prices?: VariantPrice[]; inventory_quantity?: number }
+
+function totalStock(variants: VariantRow[]): number {
+  return (variants ?? []).reduce((s, v) => s + (v.inventory_quantity ?? 0), 0)
+}
+
+function stockBadge(qty: number) {
+  if (qty === 0) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Sin stock</span>
+  if (qty <= 5) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">{qty} uds</span>
+  return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">{qty} uds</span>
+}
 
 function priceRange(variants: VariantRow[]): string {
   const prices = variants
@@ -106,6 +116,9 @@ export default async function ProductosPage() {
                       Variantes
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Stock
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Precio
                     </th>
                     <th className="px-6 py-3" />
@@ -145,6 +158,9 @@ export default async function ProductosPage() {
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">
                         {(product.variants ?? []).length}
+                      </td>
+                      <td className="px-6 py-4">
+                        {stockBadge(totalStock(product.variants ?? []))}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">
                         {priceRange(product.variants ?? [])}
