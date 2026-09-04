@@ -870,6 +870,17 @@ function RichTextEditor({
   onChange: (html: string) => void
 }) {
   const editorRef = useRef<HTMLDivElement>(null)
+  const initializedRef = useRef(false)
+
+  // Set initial content only once on mount — avoids contentEditable+dangerouslySetInnerHTML
+  // conflict that causes characters to appear in reverse order on each keystroke.
+  useEffect(() => {
+    if (editorRef.current && !initializedRef.current) {
+      editorRef.current.innerHTML = value
+      initializedRef.current = true
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const exec = (cmd: string) => {
     document.execCommand(cmd, false, undefined)
@@ -905,13 +916,12 @@ function RichTextEditor({
           </button>
         ))}
       </div>
-      {/* Editable area */}
+      {/* Editable area — no dangerouslySetInnerHTML to avoid cursor reset on each keystroke */}
       <div
         ref={editorRef as React.RefObject<HTMLDivElement>}
         contentEditable
         suppressContentEditableWarning
         onInput={handleInput}
-        dangerouslySetInnerHTML={{ __html: value }}
         className="min-h-[160px] px-3 py-2.5 text-sm text-gray-800 focus:outline-none prose prose-sm max-w-none"
         style={{ lineHeight: "1.6" }}
       />

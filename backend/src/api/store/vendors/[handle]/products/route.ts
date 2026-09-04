@@ -4,10 +4,10 @@ import { VENDOR_MODULE } from "../../../../../modules/vendor"
 import VendorModuleService from "../../../../../modules/vendor/service"
 
 const PRODUCT_FIELDS = [
-  "id", "title", "handle", "thumbnail",
+  "id", "title", "handle", "thumbnail", "status",
   "images.*",
   "variants.id", "variants.prices.*",
-  "mt_brand.*", "mt_vendor.*",
+  "mt_brand.*", "mt_vendor.id",
 ]
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -23,39 +23,22 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  // Step 1: get all product IDs linked to this vendor via query.graph
-  const { data: vendors } = await query.graph({
-    entity: "mt_vendor",
-    fields: ["id", "product.id", "product.status"],
-    filters: { id: vendor.id },
-  })
-
-  const allLinkedProducts: Array<{ id: string; status: string }> = Array.isArray(vendors[0]?.product)
-    ? vendors[0].product
-    : vendors[0]?.product
-      ? [vendors[0].product]
-      : []
-
-  const publishedIds = allLinkedProducts
-    .filter((p) => p.status === "published")
-    .map((p) => p.id)
-
-  if (!publishedIds.length) {
-    return res.json({ products: [], count: publishedIds.length, limit, offset })
-  }
-
-  // Step 2: fetch full product data with pagination
-  const { data: products, metadata } = await query.graph({
+  // Query from the product entity side to avoid mt_vendor→product published-only filter (pattern #9).
+  // Filter by status here, then client-filter by vendor ID.
+  const { data: allProducts } = await query.graph({
     entity: "product",
     fields: PRODUCT_FIELDS,
-    filters: { id: publishedIds },
-    pagination: { take: limit, skip: offset },
+    filters: { status: "published" },
+    pagination: { take: 500 },
   })
 
-  return res.json({
-    products,
-    count: metadata?.count ?? publishedIds.length,
-    limit,
-    offset,
+  const vendorProducts = allProducts.filter((p: any) => {
+    const v = Array.isArray(p.mt_vendor) ? p.mt_vendor[0] : p.mt_vendor
+    return v?.id === vendor.id
   })
+
+  const count = vendorProducts.length
+  const paginated = vendorProducts.slice(offset, offset + limit)
+
+  return res.json({ products: paginated, count, limit, offset })
 }

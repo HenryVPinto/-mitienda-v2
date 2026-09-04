@@ -105,6 +105,7 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
   if (description !== undefined) updateData.description = description
   if (thumbnail !== undefined) updateData.thumbnail = thumbnail
   if (images !== undefined) updateData.images = images
+  if (weight !== undefined) updateData.weight = weight !== null ? Number(weight) : null
   if (category_id !== undefined) {
     updateData.categories = category_id ? [{ id: category_id }] : []
   }
