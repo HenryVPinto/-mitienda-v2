@@ -24,14 +24,20 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   // Condición: al menos UNA palabra debe aparecer en título o descripción
   // Usamos = ANY($1::text[]) con ILIKE sobre cada campo
   const whereConditions = patterns
-    .map((_, i) => `(p.title ILIKE $${i + 1} OR p.description ILIKE $${i + 1} OR p.handle ILIKE $${i + 1})`)
+    .map((_, i) => `(p.title ILIKE $${i + 1} OR p.description ILIKE $${i + 1} OR p.handle ILIKE $${i + 1} OR t.value ILIKE $${i + 1})`)
     .join(" OR ")
+
+  const baseFrom = `
+    FROM product p
+    LEFT JOIN product_tags pt ON pt.product_id = p.id
+    LEFT JOIN product_tag t ON t.id = pt.product_tag_id AND t.deleted_at IS NULL
+  `
 
   try {
     const { rows } = await pool.query(
       `SELECT DISTINCT p.id, p.title, p.handle, p.thumbnail,
               p.status, p.deleted_at
-       FROM product p
+       ${baseFrom}
        WHERE p.deleted_at IS NULL
          AND p.status = 'published'
          AND (${whereConditions})
@@ -42,7 +48,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
 
     const { rows: countRows } = await pool.query(
       `SELECT COUNT(DISTINCT p.id) AS total
-       FROM product p
+       ${baseFrom}
        WHERE p.deleted_at IS NULL
          AND p.status = 'published'
          AND (${whereConditions})`,
