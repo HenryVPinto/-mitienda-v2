@@ -1018,6 +1018,74 @@ function DescriptionHtmlSection({
   )
 }
 
+// ── Section: Video del producto ───────────────────────────────────────────────
+
+function VideoUrlSection({
+  product,
+  onSaved,
+}: {
+  product: Product
+  onSaved: (updates: Partial<Product>) => void
+}) {
+  const [url, setUrl] = useState((product.metadata?.video_url as string | undefined) ?? "")
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState("")
+
+  const save = async () => {
+    setSaving(true)
+    setMsg("")
+    try {
+      const res = await fetch(`/api/vendor/products/${product.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ video_url: url.trim() }),
+      })
+      if (!res.ok) throw new Error((await res.json()).message)
+      onSaved({ metadata: { ...product.metadata, video_url: url.trim() || undefined } })
+      setMsg("Guardado")
+      setTimeout(() => setMsg(""), 2000)
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "Error al guardar")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
+      <div>
+        <h2 className="font-semibold text-gray-900 text-base">Video del producto</h2>
+        <p className="text-xs text-gray-500 mt-0.5">
+          URL de YouTube o TikTok. Se mostrará embebido en la página del producto.
+        </p>
+      </div>
+
+      <input
+        type="url"
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+        placeholder="https://www.youtube.com/watch?v=..."
+        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+
+      <div className="flex items-center gap-3">
+        <button
+          onClick={save}
+          disabled={saving}
+          className="bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+        >
+          {saving ? "Guardando..." : "Guardar video"}
+        </button>
+        {msg && (
+          <span className={`text-sm ${msg === "Guardado" ? "text-green-600" : "text-red-600"}`}>
+            {msg}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Section: Reglas de precio ─────────────────────────────────────────────────
 
 interface PromoRule {
@@ -1178,6 +1246,7 @@ export default function ProductEditor({ product: initialProduct }: { product: Pr
       <BasicInfoSection product={product} onSaved={updateProduct} />
       <ImagesSection product={product} onSaved={updateProduct} />
       <DescriptionHtmlSection product={product} onSaved={updateProduct} />
+      <VideoUrlSection product={product} onSaved={updateProduct} />
       <PricingRulesSection product={product} onSaved={updateProduct} />
       <OptionsSection productId={product.id} options={product.options ?? []} variants={product.variants ?? []} onOptionsChange={updateOptions} />
       <VariantsSection

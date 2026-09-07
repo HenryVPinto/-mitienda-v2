@@ -109,20 +109,30 @@ export default async function ProductPage({ params }: Props) {
       <ProductDetail product={product} pricingTiers={pricingTiers} />
 
       {/* Descripción */}
-      {product.description && (
-        <div className="mt-10">
-          <Separator className="mb-6" />
-          <h2 className="text-lg font-bold text-gray-800 mb-3">Descripción del producto</h2>
-          {/<[a-z]/i.test(product.description) ? (
-            <div
-              className="rich-description text-gray-600 text-sm"
-              dangerouslySetInnerHTML={{ __html: sanitize(product.description) }}
-            />
-          ) : (
-            <p className="text-gray-600 leading-relaxed text-sm whitespace-pre-line">{product.description}</p>
-          )}
-        </div>
-      )}
+      {(() => {
+        const descHtml = (product as any).mt_product_extension?.description_html as string | undefined
+        const plainDesc = product.description
+        if (!descHtml && !plainDesc) return null
+        return (
+          <div className="mt-10">
+            <Separator className="mb-6" />
+            <h2 className="text-lg font-bold text-gray-800 mb-3">Descripción del producto</h2>
+            {descHtml ? (
+              <div
+                className="rich-description text-gray-600 text-sm"
+                dangerouslySetInnerHTML={{ __html: sanitize(descHtml) }}
+              />
+            ) : /<[a-z]/i.test(plainDesc!) ? (
+              <div
+                className="rich-description text-gray-600 text-sm"
+                dangerouslySetInnerHTML={{ __html: sanitize(plainDesc!) }}
+              />
+            ) : (
+              <p className="text-gray-600 leading-relaxed text-sm whitespace-pre-line">{plainDesc}</p>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Complementa tu compra (colección) */}
       {combo.length > 0 && (

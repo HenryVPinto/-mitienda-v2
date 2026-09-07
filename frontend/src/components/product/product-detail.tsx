@@ -97,9 +97,13 @@ export function ProductDetail({ product, pricingTiers }: Props) {
   }, [product])
 
   const [selectedValues, setSelectedValues] = useState<Record<string, string>>(initialValues)
+  const [simpleVariantId, setSimpleVariantId] = useState<string | null>(product.variants?.[0]?.id ?? null)
 
   // Variante activa según selección
   const currentVariant = useMemo(() => {
+    if ((product.options?.length ?? 0) === 0) {
+      return product.variants?.find((v) => v.id === simpleVariantId) ?? product.variants?.[0]
+    }
     return (
       product.variants?.find((v) =>
         (product.options ?? []).every((option) => {
@@ -112,7 +116,7 @@ export function ProductDetail({ product, pricingTiers }: Props) {
         })
       ) ?? product.variants?.[0]
     )
-  }, [product.variants, product.options, selectedValues])
+  }, [product.variants, product.options, selectedValues, simpleVariantId])
 
   // Precio de la variante activa
   const regularPrices = (currentVariant?.prices ?? []).filter((p) => !p.price_list_id)
@@ -323,6 +327,29 @@ export function ProductDetail({ product, pricingTiers }: Props) {
                     <span className="text-center text-green-600 font-semibold">−{tier.discount_percentage}%</span>
                     <span className="text-right font-bold">{formatGTQ(unitAfterDiscount * tier.min_quantity)}</span>
                   </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Selector de variante simple (sin opciones) */}
+        {(product.options?.length ?? 0) === 0 && (product.variants?.length ?? 0) > 1 && (
+          <div>
+            <p className="text-sm font-semibold text-gray-700 mb-2">Variante</p>
+            <div className="flex flex-wrap gap-2">
+              {product.variants!.map((v) => {
+                const isSelected = v.id === simpleVariantId
+                return (
+                  <button
+                    key={v.id}
+                    onClick={() => setSimpleVariantId(v.id)}
+                    className={`px-4 py-2 text-sm rounded-lg border transition-all ${
+                      isSelected ? "border-primary bg-primary/5 text-primary font-semibold" : "border-gray-200 text-gray-700 hover:border-gray-400"
+                    }`}
+                  >
+                    {v.title}
+                  </button>
                 )
               })}
             </div>
