@@ -99,9 +99,12 @@ export function ProductDetail({ product, pricingTiers }: Props) {
   const [selectedValues, setSelectedValues] = useState<Record<string, string>>(initialValues)
   const [simpleVariantId, setSimpleVariantId] = useState<string | null>(product.variants?.[0]?.id ?? null)
 
+  // Hay opciones reales con valores (Talla, Color, etc.)
+  const hasUsableOptions = (product.options ?? []).some((o) => (o.values ?? []).length > 0)
+
   // Variante activa según selección
   const currentVariant = useMemo(() => {
-    if ((product.options?.length ?? 0) === 0) {
+    if (!hasUsableOptions) {
       return product.variants?.find((v) => v.id === simpleVariantId) ?? product.variants?.[0]
     }
     return (
@@ -333,8 +336,8 @@ export function ProductDetail({ product, pricingTiers }: Props) {
           </div>
         )}
 
-        {/* Selector de variante simple (sin opciones) */}
-        {(product.options?.length ?? 0) === 0 && (product.variants?.length ?? 0) > 1 && (
+        {/* Selector de variante simple (sin opciones con valores) */}
+        {!hasUsableOptions && (product.variants?.length ?? 0) > 1 && (
           <div>
             <p className="text-sm font-semibold text-gray-700 mb-2">Variante</p>
             <div className="flex flex-wrap gap-2">
