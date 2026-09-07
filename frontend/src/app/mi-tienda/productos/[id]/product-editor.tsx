@@ -471,12 +471,15 @@ function ImagesSection({
 function OptionsSection({
   productId,
   options,
+  variants,
   onOptionsChange,
 }: {
   productId: string
   options: ProductOption[]
+  variants: ProductVariant[]
   onOptionsChange: (opts: ProductOption[]) => void
 }) {
+  const hasSimpleVariants = options.length === 0 && variants.length > 0
   const [showForm, setShowForm] = useState(false)
   const [optTitle, setOptTitle] = useState("")
   const [optValues, setOptValues] = useState("")
@@ -530,16 +533,24 @@ function OptionsSection({
     <div className="bg-white rounded-2xl border border-gray-100 p-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-semibold text-gray-900 text-base">Opciones</h2>
-        <button onClick={() => setShowForm(!showForm)} className="text-sm text-blue-600 hover:text-blue-800 font-medium">
-          {showForm ? "Cancelar" : "+ Agregar opción"}
-        </button>
+        {!hasSimpleVariants && (
+          <button onClick={() => setShowForm(!showForm)} className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+            {showForm ? "Cancelar" : "+ Agregar opción"}
+          </button>
+        )}
       </div>
 
-      <p className="text-xs text-gray-500 mb-4">
-        Define opciones como Talla o Color. Los valores se separan por coma: S, M, L
-      </p>
+      {hasSimpleVariants ? (
+        <p className="text-xs text-gray-500 mb-4">
+          Este producto usa variantes libres (sin opciones de talla/color).
+        </p>
+      ) : (
+        <p className="text-xs text-gray-500 mb-4">
+          Define opciones como Talla o Color. Los valores se separan por coma: S, M, L
+        </p>
+      )}
 
-      {options.length === 0 && !showForm && (
+      {options.length === 0 && !showForm && !hasSimpleVariants && (
         <p className="text-sm text-gray-400 italic">Sin opciones. Agrega una para habilitar variantes.</p>
       )}
 
@@ -613,6 +624,7 @@ function VariantsSection({
 }) {
   const [showForm, setShowForm] = useState(false)
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({})
+  const [variantTitle, setVariantTitle] = useState("")
   const [price, setPrice] = useState("")
   const [colorHex, setColorHex] = useState("#000000")
   const [useColor, setUseColor] = useState(false)
@@ -686,12 +698,16 @@ function VariantsSection({
         return
       }
     }
+    if (options.length === 0 && !variantTitle.trim()) {
+      setFormError("Escribe un nombre para la variante")
+      return
+    }
     setAdding(true)
     setFormError("")
     const title =
       options.length > 0
         ? options.map((o) => selectedOptions[o.id]).join(" / ")
-        : "Default"
+        : variantTitle.trim()
     const optionsPayload = options.length > 0
       ? options.map((o) => ({ option_id: o.id, value: selectedOptions[o.id] }))
       : undefined
@@ -711,6 +727,7 @@ function VariantsSection({
       if (!res.ok) throw new Error(data.message)
       onVariantsChange([...variants, data.variant])
       setSelectedOptions({})
+      setVariantTitle("")
       setPrice("")
       setColorHex("#000000")
       setUseColor(false)
@@ -788,6 +805,18 @@ function VariantsSection({
 
       {showForm && (
         <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
+          {options.length === 0 && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Nombre de la variante</label>
+              <input
+                type="text"
+                value={variantTitle}
+                onChange={(e) => setVariantTitle(e.target.value)}
+                placeholder="Ej: HYD25V, Azul, Talla M"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          )}
           {options.map((opt) => (
             <div key={opt.id}>
               <label className="block text-xs font-medium text-gray-600 mb-1">{opt.title}</label>
@@ -1150,7 +1179,7 @@ export default function ProductEditor({ product: initialProduct }: { product: Pr
       <ImagesSection product={product} onSaved={updateProduct} />
       <DescriptionHtmlSection product={product} onSaved={updateProduct} />
       <PricingRulesSection product={product} onSaved={updateProduct} />
-      <OptionsSection productId={product.id} options={product.options ?? []} onOptionsChange={updateOptions} />
+      <OptionsSection productId={product.id} options={product.options ?? []} variants={product.variants ?? []} onOptionsChange={updateOptions} />
       <VariantsSection
         productId={product.id}
         options={product.options ?? []}
