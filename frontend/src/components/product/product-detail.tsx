@@ -99,8 +99,21 @@ export function ProductDetail({ product, pricingTiers }: Props) {
   const [selectedValues, setSelectedValues] = useState<Record<string, string>>(initialValues)
   const [simpleVariantId, setSimpleVariantId] = useState<string | null>(product.variants?.[0]?.id ?? null)
 
-  // Hay opciones reales con valores (Talla, Color, etc.)
-  const hasUsableOptions = (product.options ?? []).some((o) => (o.values ?? []).length > 0)
+  // Valores efectivos de una opción: usa option.values si existen, sino los deriva desde las variantes.
+  // Medusa v2 a veces devuelve option.values=[] aunque las variantes sí tengan valores asignados.
+  const getEffectiveValues = (option: NonNullable<typeof product.options>[number]) => {
+    if (option.values?.length) return option.values
+    const seen = new Set<string>()
+    const derived: { id: string; value: string }[] = []
+    ;(product.variants ?? []).forEach((v) => {
+      const val = v.options?.find((o) => o.option_id === option.id)?.value
+      if (val && !seen.has(val)) { seen.add(val); derived.push({ id: `d-${derived.length}`, value: val }) }
+    })
+    return derived
+  }
+
+  // Hay opciones reales con valores (directos o derivados de variantes)
+  const hasUsableOptions = (product.options ?? []).some((o) => getEffectiveValues(o).length > 0)
 
   // Variante activa según selección
   const currentVariant = useMemo(() => {
@@ -361,6 +374,8 @@ export function ProductDetail({ product, pricingTiers }: Props) {
 
         {/* Selectores de variante */}
         {product.options?.map((option) => {
+          const effectiveValues = getEffectiveValues(option)
+          if (!effectiveValues.length) return null
           return (
             <div key={option.id}>
               <p className="text-sm font-semibold text-gray-700 mb-2">
@@ -370,7 +385,7 @@ export function ProductDetail({ product, pricingTiers }: Props) {
                 )}
               </p>
               <div className="flex flex-wrap gap-2">
-                {(option.values ?? []).map((val) => {
+                {effectiveValues.map((val) => {
                   const isSelected = selectedValues[option.id] === val.value
                   const available = isValueAvailable(option.id, val.value)
 
