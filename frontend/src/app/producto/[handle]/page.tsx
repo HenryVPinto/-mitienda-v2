@@ -17,9 +17,10 @@ const PRODUCT_FIELDS =
 
 async function getProduct(handle: string): Promise<Product | null> {
   try {
-    const regionId = await getDefaultRegionId()
-    const params: Record<string, string> = { handle, fields: PRODUCT_FIELDS }
-    if (regionId) params.region_id = regionId
+    // No pasamos region_id para que Medusa devuelva TODAS las variantes,
+    // incluidas las que aún no tienen precio configurado en la región.
+    // El precio se toma de variant.prices filtrado por currency_code=gtq.
+    const params: Record<string, string> = { handle, fields: PRODUCT_FIELDS, currency_code: "gtq" }
     const data = await storeGet<{ products: Product[] }>("/store/products", params)
     return data.products?.[0] ?? null
   } catch {
@@ -105,14 +106,6 @@ export default async function ProductPage({ params }: Props) {
         <ChevronRight className="w-3 h-3" />
         <span className="text-gray-800 truncate max-w-48">{product.title}</span>
       </nav>
-
-      {/* DEBUG TEMPORAL — borrar después */}
-      <pre className="text-xs bg-gray-100 p-3 rounded overflow-auto max-h-48 mb-4">
-        variants: {product.variants?.length ?? 0} |
-        options: {JSON.stringify((product.options ?? []).map(o => ({ title: o.title, values: o.values?.length ?? 0 })))}
-        {"\n"}variant[0].options: {JSON.stringify(product.variants?.[0]?.options)}
-        {"\n"}variant[1].options: {JSON.stringify(product.variants?.[1]?.options)}
-      </pre>
 
       <ProductDetail product={product} pricingTiers={pricingTiers} />
 

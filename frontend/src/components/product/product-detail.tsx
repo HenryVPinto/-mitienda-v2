@@ -134,12 +134,14 @@ export function ProductDetail({ product, pricingTiers }: Props) {
     )
   }, [product.variants, product.options, selectedValues, simpleVariantId])
 
-  // Precio de la variante activa
-  const regularPrices = (currentVariant?.prices ?? []).filter((p) => !p.price_list_id)
+  // Precio de la variante activa — filtramos por GTQ porque el producto
+  // se fetch sin region_id para obtener todas las variantes.
+  const regularPrices = (currentVariant?.prices ?? []).filter(
+    (p) => !p.price_list_id && p.currency_code === "gtq"
+  )
   const price =
     currentVariant?.calculated_price?.calculated_amount ??
     regularPrices[0]?.amount ??
-    currentVariant?.prices?.[0]?.amount ??
     0
 
   // Precio tachado: primero price list activo, luego compare_at_price de metadata
