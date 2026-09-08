@@ -106,6 +106,14 @@ export default async function ProductPage({ params }: Props) {
         <span className="text-gray-800 truncate max-w-48">{product.title}</span>
       </nav>
 
+      {/* DEBUG TEMPORAL — borrar después */}
+      <pre className="text-xs bg-gray-100 p-3 rounded overflow-auto max-h-48 mb-4">
+        variants: {product.variants?.length ?? 0} |
+        options: {JSON.stringify((product.options ?? []).map(o => ({ title: o.title, values: o.values?.length ?? 0 })))}
+        {"\n"}variant[0].options: {JSON.stringify(product.variants?.[0]?.options)}
+        {"\n"}variant[1].options: {JSON.stringify(product.variants?.[1]?.options)}
+      </pre>
+
       <ProductDetail product={product} pricingTiers={pricingTiers} />
 
       {/* Descripción */}
