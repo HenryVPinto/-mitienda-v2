@@ -761,7 +761,7 @@ function VariantsSection({
             return (
               <div key={variant.id} className="flex items-center gap-3 py-3 border-b border-gray-50 last:border-0">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 truncate">{variant.title}</p>
+                  <p className="text-sm font-medium text-gray-800 truncate">{variant.title === "Default Title" ? "Estándar" : variant.title}</p>
                   {variant.metadata?.color_hex && (
                     <span
                       className="inline-block w-4 h-4 rounded-full border border-gray-200 mt-1"

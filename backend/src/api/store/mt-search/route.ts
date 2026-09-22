@@ -24,13 +24,14 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   // Condición: al menos UNA palabra debe aparecer en título o descripción
   // Usamos = ANY($1::text[]) con ILIKE sobre cada campo
   const whereConditions = patterns
-    .map((_, i) => `(p.title ILIKE $${i + 1} OR p.description ILIKE $${i + 1} OR p.handle ILIKE $${i + 1} OR t.value ILIKE $${i + 1})`)
+    .map((_, i) => `(p.title ILIKE $${i + 1} OR p.description ILIKE $${i + 1} OR p.handle ILIKE $${i + 1} OR t.value ILIKE $${i + 1} OR pv.title ILIKE $${i + 1})`)
     .join(" OR ")
 
   const baseFrom = `
     FROM product p
     LEFT JOIN product_tags pt ON pt.product_id = p.id
     LEFT JOIN product_tag t ON t.id = pt.product_tag_id AND t.deleted_at IS NULL
+    LEFT JOIN product_variant pv ON pv.product_id = p.id AND pv.deleted_at IS NULL
   `
 
   try {

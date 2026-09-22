@@ -31,12 +31,12 @@ const ProductVariantAttributesWidget = ({ data }: Props) => {
   useEffect(() => {
     if (!productId) return
     fetch(
-      `${base}/admin/products/${productId}?fields=id,variants.id,variants.weight,variants.width,variants.length,variants.height,variants.mid_code,variants.hs_code`,
+      `${base}/admin/products/${productId}/variants/${variantId}`,
       { credentials: "include" }
     )
       .then((r) => r.json())
       .then((d) => {
-        const variant = (d.product?.variants ?? []).find((v: any) => v.id === variantId)
+        const variant = d.variant
         if (variant) {
           setFields({
             weight: variant.weight?.toString() ?? "",

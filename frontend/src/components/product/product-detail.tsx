@@ -28,6 +28,8 @@ function getEmbedUrl(url: string): string | null {
   if (platform === "youtube") {
     const short = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/)
     if (short) return `https://www.youtube.com/embed/${short[1]}`
+    const shorts = url.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]+)/)
+    if (shorts) return `https://www.youtube.com/embed/${shorts[1]}`
     const long = url.match(/[?&]v=([a-zA-Z0-9_-]+)/)
     if (long) return `https://www.youtube.com/embed/${long[1]}`
     if (url.includes("/embed/")) return url
@@ -161,11 +163,15 @@ export function ProductDetail({ product, pricingTiers }: Props) {
     : []
 
   // Imágenes de la variante activa.
-  // El thumbnail de la variante va primero (imagen principal), seguido del resto de su galería.
-  // Si no hay ni thumbnail ni imágenes, cae a product.images.
+  // Prioridad: 1) variant.images nativo, 2) variant.metadata.images_urls (vendor portal),
+  // 3) thumbnail de variante, 4) fallback a product.images.
   const variantImages: { id: string; url: string }[] = (() => {
     const thumb = currentVariant?.thumbnail
-    const imgs = currentVariant?.images ?? []
+    const nativeImgs = currentVariant?.images ?? []
+    const metaUrls = (currentVariant?.metadata?.images_urls as string[] | undefined) ?? []
+    const metaImgs = metaUrls.map((url, i) => ({ id: `meta-${currentVariant?.id}-${i}`, url }))
+    // Usar imágenes nativas si existen, si no usar las de metadata (subidas por el vendor portal)
+    const imgs = nativeImgs.length > 0 ? nativeImgs : metaImgs
     if (thumb) {
       return [
         { id: `thumb-${currentVariant?.id}`, url: thumb },
@@ -366,7 +372,7 @@ export function ProductDetail({ product, pricingTiers }: Props) {
                       isSelected ? "border-primary bg-primary/5 text-primary font-semibold" : "border-gray-200 text-gray-700 hover:border-gray-400"
                     }`}
                   >
-                    {v.title}
+                    {v.title === "Default Title" ? "Estándar" : v.title}
                   </button>
                 )
               })}

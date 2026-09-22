@@ -174,7 +174,7 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
     if (ext?.id) {
       await extensionService.updateMtProductExtensions([{ id: ext.id, ...extUpdate }])
     } else {
-      const newExt = await extensionService.createMtProductExtensions(extUpdate)
+      const [newExt] = await extensionService.createMtProductExtensions([extUpdate])
       await remoteLink.create({
         [Modules.PRODUCT]: { product_id: id },
         [PRODUCT_EXTENSION_MODULE]: { mt_product_extension_id: newExt.id },
