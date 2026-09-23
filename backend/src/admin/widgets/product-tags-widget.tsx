@@ -38,19 +38,63 @@ const ProductTagsWidget = ({ data }: Props) => {
   const handleSave = async () => {
     setSaving(true)
     try {
+      // Separate tags that already have a Medusa ID vs. newly added ones
+      const existingTags = tags.filter((t) => !t.id.startsWith("new_"))
+      const newTags = tags.filter((t) => t.id.startsWith("new_"))
+
+      // For new tags: search for existing ones by value, then create missing ones
+      const resolvedIds: string[] = existingTags.map((t) => t.id)
+
+      if (newTags.length > 0) {
+        // Search for existing tags matching these values (batch)
+        const valueParams = newTags.map((t) => `value[]=${encodeURIComponent(t.value)}`).join("&")
+        const searchRes = await fetch(
+          `${base}/admin/product-tags?${valueParams}&fields=id,value&limit=50`,
+          { credentials: "include" }
+        )
+        const searchData = await searchRes.json()
+        const existingByValue = new Map<string, string>(
+          (searchData.product_tags ?? []).map((t: Tag) => [t.value.toLowerCase(), t.id])
+        )
+
+        // For each new tag: use found ID or create a new tag
+        for (const tag of newTags) {
+          const foundId = existingByValue.get(tag.value.toLowerCase())
+          if (foundId) {
+            resolvedIds.push(foundId)
+          } else {
+            const createRes = await fetch(`${base}/admin/product-tags`, {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ value: tag.value }),
+            })
+            if (!createRes.ok) throw new Error(`No se pudo crear etiqueta "${tag.value}"`)
+            const createData = await createRes.json()
+            if (createData.product_tag?.id) resolvedIds.push(createData.product_tag.id)
+          }
+        }
+      }
+
+      // Update product with the resolved tag IDs
       const res = await fetch(`${base}/admin/products/${productId}`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tags: tags.map((t) => ({ value: t.value })) }),
+        body: JSON.stringify({ tags: resolvedIds.map((id) => ({ id })) }),
       })
-      if (!res.ok) throw new Error()
-      // Reload tags to get server-assigned IDs
-      const updated = await (await fetch(`${base}/admin/products/${productId}?fields=id,*tags`, { credentials: "include" })).json()
+      if (!res.ok) throw new Error("Error al actualizar producto")
+
+      // Reload tags to get fresh data from server
+      const updated = await fetch(
+        `${base}/admin/products/${productId}?fields=id,*tags`,
+        { credentials: "include" }
+      ).then((r) => r.json())
       setTags(updated.product?.tags ?? [])
       toast.success("Etiquetas guardadas")
-    } catch {
-      toast.error("Error al guardar etiquetas")
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error al guardar etiquetas"
+      toast.error(msg)
     } finally {
       setSaving(false)
     }
