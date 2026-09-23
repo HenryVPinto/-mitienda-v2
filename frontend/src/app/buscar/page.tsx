@@ -15,15 +15,18 @@ const FIELDS =
 async function searchProducts(query: string, page: number) {
   const offset = (page - 1) * LIMIT
 
-  // 1. Búsqueda amplia custom: OR por palabras en título/descripción/handle
+  // 1. Búsqueda custom con relevancia
   try {
-    const broad = await storeGet<{ products: { id: string; handle: string }[]; count: number }>(
-      "/store/mt-search",
-      { q: query, limit: String(LIMIT), offset: String(offset) }
-    )
+    // Lanzar mt-search y regionId en paralelo
+    const [broad, regionId] = await Promise.all([
+      storeGet<{ products: { id: string; handle: string }[]; count: number }>(
+        "/store/mt-search",
+        { q: query, limit: String(LIMIT), offset: String(offset) }
+      ),
+      getDefaultRegionId(),
+    ])
+
     if (broad.products.length > 0 || broad.count > 0) {
-      // Enriquecer con precios e imágenes usando los handles encontrados
-      const regionId = await getDefaultRegionId()
       const handles = broad.products.map((p) => p.handle)
       const params: Record<string, string | string[]> = {
         "handle[]": handles,
@@ -32,7 +35,7 @@ async function searchProducts(query: string, page: number) {
       }
       if (regionId) params.region_id = regionId
       const rich = await storeGet<{ products: Product[] }>("/store/products", params as Record<string, string>)
-      // Preservar el orden de la búsqueda amplia
+      // Preservar el orden de relevancia devuelto por mt-search
       const byHandle = new Map((rich.products ?? []).map((p) => [p.handle, p]))
       const ordered = handles.map((h) => byHandle.get(h)).filter(Boolean) as Product[]
       return { products: ordered, count: broad.count }

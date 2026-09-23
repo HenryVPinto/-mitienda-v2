@@ -38,10 +38,11 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   // Primary patterns: %word% (accent-stripped)
   const exactPatterns = normalized.map(w => `%${w}%`)
 
-  // Fuzzy fallback: middle substring of words >= 6 chars
-  // Handles first/last-letter typos: "zafari"[1:-1] = "afar" → "%afar%" matches "safari"
+  // Fuzzy fallback: middle substring de palabras >= 7 chars
+  // Solo palabras largas para reducir falsos positivos y mejorar velocidad
+  // "zafari"[1:-1] = "afar" → "%afar%" matches "safari"
   const fuzzyPatterns = normalized
-    .filter(w => w.length >= 6)
+    .filter(w => w.length >= 7)
     .map(w => `%${w.slice(1, w.length - 1)}%`)
 
   const allPatterns = [...exactPatterns, ...fuzzyPatterns]
@@ -98,23 +99,25 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   `
 
   try {
-    const { rows } = await pool.query(
-      `SELECT p.id, p.title, p.handle, p.thumbnail,
-              MAX(${scoreExpr}) AS relevance
-       ${fromClause}
-       ${whereClause}
-       GROUP BY p.id, p.title, p.handle, p.thumbnail
-       ORDER BY relevance DESC, p.title
-       LIMIT $${allPatterns.length + 1} OFFSET $${allPatterns.length + 2}`,
-      [...allPatterns, limit, offset]
-    )
-
-    const { rows: countRows } = await pool.query(
-      `SELECT COUNT(DISTINCT p.id) AS total
-       ${fromClause}
-       ${whereClause}`,
-      allPatterns
-    )
+    // Ejecutar query principal y conteo en paralelo
+    const [{ rows }, { rows: countRows }] = await Promise.all([
+      pool.query(
+        `SELECT p.id, p.title, p.handle, p.thumbnail,
+                MAX(${scoreExpr}) AS relevance
+         ${fromClause}
+         ${whereClause}
+         GROUP BY p.id, p.title, p.handle, p.thumbnail
+         ORDER BY relevance DESC, p.title
+         LIMIT $${allPatterns.length + 1} OFFSET $${allPatterns.length + 2}`,
+        [...allPatterns, limit, offset]
+      ),
+      pool.query(
+        `SELECT COUNT(DISTINCT p.id) AS total
+         ${fromClause}
+         ${whereClause}`,
+        allPatterns
+      ),
+    ])
 
     res.json({
       products: rows.map(r => ({ id: r.id, title: r.title, handle: r.handle, thumbnail: r.thumbnail })),
