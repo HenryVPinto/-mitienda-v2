@@ -111,7 +111,7 @@ export default async function ProductPage({ params }: Props) {
 
       {/* Descripción */}
       {(() => {
-        const descHtml = (product as any).mt_product_extension?.description_html as string | undefined
+        const descHtml = product.mt_product_extension?.description_html ?? undefined
         const plainDesc = product.description
         if (!descHtml && !plainDesc) return null
         return (
