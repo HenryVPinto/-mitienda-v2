@@ -17,6 +17,17 @@ type Props = {
 
 const METADATA_SKIP = new Set(["color_hex", "is_featured", "compare_at_price", "sale_price", "video_url", "promo_rule_ids", "weight_unit"])
 
+// Medusa crea estas cadenas en inglés cuando el producto es simple (una sola variante sin opciones configuradas)
+const DEFAULT_OPTION_TITLES = new Set(["title", "default option"])
+const DEFAULT_OPTION_VALUES = new Set(["default title", "default option value"])
+
+function translateOptionTitle(title: string): string | null {
+  return DEFAULT_OPTION_TITLES.has(title.toLowerCase()) ? null : title
+}
+function translateOptionValue(value: string): string {
+  return DEFAULT_OPTION_VALUES.has(value.toLowerCase()) ? "Estándar" : value
+}
+
 function detectVideoPlatform(url: string): "youtube" | "tiktok" | null {
   if (/youtube\.com|youtu\.be/.test(url)) return "youtube"
   if (/tiktok\.com/.test(url)) return "tiktok"
@@ -399,9 +410,9 @@ export function ProductDetail({ product, pricingTiers }: Props) {
           return (
             <div key={option.id}>
               <p className="text-sm font-semibold text-gray-700 mb-2">
-                {option.title}
+                {translateOptionTitle(option.title)}
                 {selectedValues[option.id] && (
-                  <span className="ml-2 font-normal text-gray-500">{selectedValues[option.id]}</span>
+                  <span className="ml-2 font-normal text-gray-500">{translateOptionValue(selectedValues[option.id])}</span>
                 )}
               </p>
               <div className="flex flex-wrap gap-2">
@@ -445,7 +456,7 @@ export function ProductDetail({ product, pricingTiers }: Props) {
                       `}
                       style={colorHex ? { backgroundColor: colorHex } : undefined}
                     >
-                      {!colorHex && val.value}
+                      {!colorHex && translateOptionValue(val.value)}
                     </button>
                   )
                 })}
