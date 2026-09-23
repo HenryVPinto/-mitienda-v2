@@ -518,6 +518,21 @@ export function ProductDetail({ product, pricingTiers }: Props) {
           ))}
         </div>
 
+        {/* Etiquetas */}
+        {product.tags && product.tags.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {product.tags.map((tag) => (
+              <a
+                key={tag.id}
+                href={`/buscar?q=${encodeURIComponent(tag.value)}`}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-full border border-gray-200 text-gray-500 hover:border-primary hover:text-primary transition-colors"
+              >
+                # {tag.value}
+              </a>
+            ))}
+          </div>
+        )}
+
         {/* Vendedor */}
         {product.mt_vendor && (
           <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
