@@ -2,26 +2,15 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { ShoppingCart, Search } from "lucide-react"
-import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { useCart } from "@/context/cart-context"
 import { CartDrawer } from "@/components/cart/cart-drawer"
 
 export function Header() {
   const { count } = useCart()
-  const [query, setQuery] = useState("")
   const [cartOpen, setCartOpen] = useState(false)
-  const router = useRouter()
-
-  function handleSearch(e: React.FormEvent) {
-    e.preventDefault()
-    if (query.trim()) {
-      router.push(`/buscar?q=${encodeURIComponent(query.trim())}`)
-    }
-  }
 
   return (
     <>
@@ -38,15 +27,15 @@ export function Header() {
             />
           </Link>
 
-          {/* Buscador */}
-          <form onSubmit={handleSearch} className="flex-1 flex items-center gap-2 max-w-2xl">
+          {/* Buscador — formulario nativo GET, sin estado React */}
+          <form action="/buscar" method="GET" className="flex-1 flex items-center gap-2 max-w-2xl">
             <div className="relative flex-1">
-              <Input
+              <input
                 type="search"
+                name="q"
                 placeholder="¡Hola! ¿Qué buscas hoy?"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="pr-10 h-10"
+                autoComplete="off"
+                className="h-10 w-full rounded-lg border border-input bg-transparent px-3 pr-10 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
               />
               <button
                 type="submit"
