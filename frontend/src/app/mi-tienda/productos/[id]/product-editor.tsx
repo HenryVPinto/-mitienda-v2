@@ -57,6 +57,9 @@ function BasicInfoSection({
   const [weight, setWeight] = useState(
     product.mt_product_extension?.weight?.toString() ?? ""
   )
+  const [weightUnit, setWeightUnit] = useState(
+    (product.metadata?.weight_unit as string | undefined) ?? "lb"
+  )
   const [brandId, setBrandId] = useState(product.mt_brand?.id ?? "")
   const [categoryId, setCategoryId] = useState(product.categories?.[0]?.id ?? "")
   const [brands, setBrands] = useState<Brand[]>([])
@@ -94,6 +97,8 @@ function BasicInfoSection({
       const weightNum = weight.trim() ? Number(weight.trim()) : null
       const currentWeight = product.mt_product_extension?.weight ?? null
       if (weightNum !== currentWeight) body.weight = weightNum
+      const currentWeightUnit = (product.metadata?.weight_unit as string | undefined) ?? "lb"
+      if (weightUnit !== currentWeightUnit) body.weight_unit = weightUnit
 
       const res = await fetch(`/api/vendor/products/${product.id}`, {
         method: "PATCH",
@@ -175,16 +180,28 @@ function BasicInfoSection({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Peso (lb)</label>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={weight}
-            onChange={(e) => setWeight(e.target.value)}
-            placeholder="0.00"
-            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Peso</label>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={weight}
+              onChange={(e) => setWeight(e.target.value)}
+              placeholder="0.00"
+              className="flex-1 min-w-0 px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <select
+              value={weightUnit}
+              onChange={(e) => setWeightUnit(e.target.value)}
+              className="px-2 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
+              <option value="lb">lb</option>
+              <option value="kg">kg</option>
+              <option value="g">g</option>
+              <option value="oz">oz</option>
+            </select>
+          </div>
         </div>
       </div>
 

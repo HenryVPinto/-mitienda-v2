@@ -52,7 +52,7 @@ function buildAttributes(
   // Peso: variante activa tiene prioridad sobre el producto
   const weight = variant?.weight ?? product.weight ?? product.mt_product_extension?.weight
   if (weight) {
-    const unit = (product.metadata?.weight_unit as string | undefined) ?? "g"
+    const unit = (product.metadata?.weight_unit as string | undefined) ?? "lb"
     rows.push({ label: "Peso", value: `${weight} ${unit}` })
   }
 
