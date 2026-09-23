@@ -35,6 +35,17 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   `
 
   try {
+    // Debug: check tags directly for this query
+    const { rows: tagRows } = await pool.query(
+      `SELECT DISTINCT t.id, t.value, t.deleted_at, pt.product_id
+       FROM product_tag t
+       LEFT JOIN product_tags pt ON pt.product_tag_id = t.id
+       WHERE t.value ILIKE $1
+       LIMIT 10`,
+      [patterns[0] ?? "%"]
+    )
+    console.log(`[mt-search] q="${q}" tagRows:`, JSON.stringify(tagRows))
+
     const { rows } = await pool.query(
       `SELECT DISTINCT p.id, p.title, p.handle, p.thumbnail,
               p.status, p.deleted_at
@@ -55,6 +66,8 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
          AND (${whereConditions})`,
       patterns
     )
+
+    console.log(`[mt-search] q="${q}" found=${countRows[0]?.total} results=${rows.length}`)
 
     res.json({
       products: rows.map((r) => ({ id: r.id, title: r.title, handle: r.handle, thumbnail: r.thumbnail })),
