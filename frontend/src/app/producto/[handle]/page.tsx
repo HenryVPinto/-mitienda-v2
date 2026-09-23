@@ -17,10 +17,12 @@ const PRODUCT_FIELDS =
 
 async function getProduct(handle: string): Promise<Product | null> {
   try {
-    // No pasamos region_id para que Medusa devuelva TODAS las variantes,
-    // incluidas las que aún no tienen precio configurado en la región.
-    // El precio se toma de variant.prices filtrado por currency_code=gtq.
-    const params: Record<string, string> = { handle, fields: PRODUCT_FIELDS, currency_code: "gtq" }
+    const regionId = await getDefaultRegionId()
+    // Pasamos region_id para que Medusa pueda calcular precios (calculated_price requiere region_id).
+    // Las variantes sin precio en la región se muestran igual — el cliente filtra por currency_code=gtq
+    // desde variant.prices.* para obtener el precio base.
+    const params: Record<string, string> = { handle, fields: PRODUCT_FIELDS }
+    if (regionId) params.region_id = regionId
     const data = await storeGet<{ products: Product[] }>("/store/products", params)
     return data.products?.[0] ?? null
   } catch {
