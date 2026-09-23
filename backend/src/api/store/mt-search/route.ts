@@ -38,11 +38,11 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   // Primary patterns: %word% (accent-stripped)
   const exactPatterns = normalized.map(w => `%${w}%`)
 
-  // Fuzzy fallback: middle substring para palabras >= 6 chars
+  // Fuzzy fallback: middle substring para palabras >= 4 chars
   // "zafari"[1:-1] = "afar" → "%afar%" matches "safari"
-  // "safary"[1:-1] = "afar" → "%afar%" matches "safari"
+  // "mesa"[1:-1] = "es" → "%es%" matches "mesa"
   const fuzzyPatterns = normalized
-    .filter(w => w.length >= 6)
+    .filter(w => w.length >= 4)
     .map(w => `%${w.slice(1, w.length - 1)}%`)
 
   const allPatterns = [...exactPatterns, ...fuzzyPatterns]
