@@ -7,9 +7,9 @@ type Props = {
 }
 
 const UNITS = [
-  { value: "g", label: "Gramos (g)" },
-  { value: "kg", label: "Kilogramos (kg)" },
   { value: "lb", label: "Libras (lb)" },
+  { value: "kg", label: "Kilogramos (kg)" },
+  { value: "g", label: "Gramos (g)" },
   { value: "oz", label: "Onzas (oz)" },
 ]
 
@@ -17,7 +17,7 @@ const ProductWeightUnitWidget = ({ data }: Props) => {
   const productId = data.id
   const base = window.location.origin
 
-  const [unit, setUnit] = useState("g")
+  const [unit, setUnit] = useState("lb")
   const [metadata, setMetadata] = useState<Record<string, unknown>>({})
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -30,7 +30,7 @@ const ProductWeightUnitWidget = ({ data }: Props) => {
       .then((d) => {
         const meta = d.product?.metadata ?? {}
         setMetadata(meta)
-        setUnit((meta.weight_unit as string) ?? "g")
+        setUnit((meta.weight_unit as string) ?? "lb")
       })
       .catch(() => {})
   }, [productId])
