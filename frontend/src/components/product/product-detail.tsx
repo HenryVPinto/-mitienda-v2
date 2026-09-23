@@ -41,25 +41,37 @@ function getEmbedUrl(url: string): string | null {
   return null
 }
 
-function buildAttributes(product: Product): { label: string; value: string }[] {
+function buildAttributes(
+  product: Product,
+  variant?: import("@/lib/types").ProductVariant | null
+): { label: string; value: string }[] {
   const rows: { label: string; value: string }[] = []
 
   if (product.material) rows.push({ label: "Material", value: product.material })
 
-  const weight = product.weight ?? product.mt_product_extension?.weight
+  // Peso: variante activa tiene prioridad sobre el producto
+  const weight = variant?.weight ?? product.weight ?? product.mt_product_extension?.weight
   if (weight) {
     const unit = (product.metadata?.weight_unit as string | undefined) ?? "g"
     rows.push({ label: "Peso", value: `${weight} ${unit}` })
   }
 
-  if (product.height || product.width || product.length) {
+  // Dimensiones: variante activa tiene prioridad sobre el producto
+  const height = variant?.height ?? product.height
+  const width = variant?.width ?? product.width
+  const length = variant?.length ?? product.length
+  if (height || width || length) {
     const parts = [
-      product.height ? `${product.height} cm alto` : null,
-      product.width ? `${product.width} cm ancho` : null,
-      product.length ? `${product.length} cm largo` : null,
+      height ? `${height} cm alto` : null,
+      width ? `${width} cm ancho` : null,
+      length ? `${length} cm largo` : null,
     ].filter(Boolean)
     rows.push({ label: "Dimensiones", value: parts.join(" × ") })
   }
+
+  // Códigos MID/HS — solo si la variante activa los tiene
+  if (variant?.mid_code) rows.push({ label: "Código MID", value: variant.mid_code })
+  if (variant?.hs_code) rows.push({ label: "Código HS", value: variant.hs_code })
 
   const meta = product.metadata
   if (meta && typeof meta === "object") {
@@ -462,7 +474,7 @@ export function ProductDetail({ product, pricingTiers }: Props) {
 
         {/* Especificaciones */}
         {(() => {
-          const attrs = buildAttributes(product)
+          const attrs = buildAttributes(product, currentVariant)
           if (!attrs.length) return null
           return (
             <div className="border border-gray-100 rounded-lg overflow-hidden">

@@ -52,6 +52,13 @@ export type ProductVariant = {
   }
   metadata?: Record<string, unknown> | null
   images?: { id: string; url: string }[]
+  // Atributos físicos nativos de Medusa (parametrizables por variante)
+  weight?: number | null
+  width?: number | null
+  length?: number | null
+  height?: number | null
+  mid_code?: string | null
+  hs_code?: string | null
 }
 
 export type Category = {

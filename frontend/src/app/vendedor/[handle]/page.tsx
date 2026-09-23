@@ -117,9 +117,9 @@ export default async function VendorPage({ params, searchParams }: Props) {
               </a>
             )}
             {vendor.contact_phone && (
-              <a href={`tel:${vendor.contact_phone}`} className="flex items-center gap-2 text-sm text-gray-600 hover:text-primary">
+              <span className="flex items-center gap-2 text-sm text-gray-500">
                 <Phone className="w-4 h-4" />{vendor.contact_phone}
-              </a>
+              </span>
             )}
             <a
               href={`mailto:${vendor.contact_email ?? ""}`}
