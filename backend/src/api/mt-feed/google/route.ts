@@ -36,6 +36,21 @@ function escapeXml(str: string | null | undefined): string {
     .replace(/'/g, "&apos;")
 }
 
+function stripHtml(html: string | null | undefined): string {
+  if (!html) return ""
+  return html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 5000)
+}
+
 function getGtqPrice(prices: any[]): number | null {
   if (!Array.isArray(prices) || !prices.length) return null
   const gtq = prices.find((p) => p.currency_code === "gtq" || p.currency_code === "GTQ")
@@ -65,7 +80,7 @@ function buildItem(product: any, variant: any, hasMultipleVariants: boolean): st
   const title = hasMultipleVariants
     ? `${product.title} – ${variant.title}`
     : product.title
-  const description = product.description ?? product.title
+  const description = stripHtml(product.description) || product.title
   const link = `${STORE_URL}/productos/${product.handle}`
   const imageUrl = getImageUrl(product, variant)
   const availability = isInStock(variant) ? "in stock" : "out of stock"
