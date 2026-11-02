@@ -29,6 +29,7 @@ const PRODUCT_FIELDS = [
 function escapeXml(str: string | null | undefined): string {
   if (!str) return ""
   return str
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -46,6 +47,7 @@ function stripHtml(html: string | null | undefined): string {
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 5000)
