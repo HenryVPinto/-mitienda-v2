@@ -72,17 +72,6 @@ export default async function RootLayout({
               />
             </noscript>
             <CartProvider>
-              <div className="bg-red-600 text-white text-sm font-semibold text-center py-2 px-4">
-                ⚠️ Actualización disponible: Medusa 2.22.2 — actualmente en 2.17.2.{" "}
-                <a
-                  href="https://github.com/medusajs/medusa/releases"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline hover:text-red-200"
-                >
-                  Ver cambios
-                </a>
-              </div>
               <TopBar />
               <Header />
               <NavCategories categories={categories} />
